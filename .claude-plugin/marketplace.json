@@ -1,0 +1,13 @@
+{
+  "name": "freelunch",
+  "owner": {
+    "name": "Jung Jiwon & Lee Jongkwan"
+  },
+  "plugins": [
+    {
+      "name": "freelunch",
+      "source": "./freelunch",
+      "description": "Speed-first plugin that forces every task onto concurrent background Sonnet agents with zero idle time"
+    }
+  ]
+}

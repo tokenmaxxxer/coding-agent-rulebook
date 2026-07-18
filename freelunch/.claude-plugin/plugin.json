@@ -1,0 +1,8 @@
+{
+  "name": "freelunch",
+  "version": "0.1.0",
+  "description": "Forces every task to run as many concurrent background agents (all on Sonnet — measured fastest) with zero idle time and no verification passes, targeting 5x+ faster wall-clock completion.",
+  "author": {
+    "name": "Jung Jiwon & Lee Jongkwan"
+  }
+}
