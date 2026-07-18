@@ -47,14 +47,15 @@ settings.setdefault("extraKnownMarketplaces", {})[market] = {
     "source": {"source": "local", "path": root}
 }
 
+# enabledPlugins is a record ({"plugin@market": true}), not an array —
+# an array makes the whole settings file fail to parse.
 enabled = settings.get("enabledPlugins")
-if isinstance(enabled, dict):
-    enabled[key] = True
-elif isinstance(enabled, list):
-    if key not in enabled:
-        enabled.append(key)
-else:
-    settings["enabledPlugins"] = [key]
+if isinstance(enabled, list):
+    enabled = {k: True for k in enabled}
+elif not isinstance(enabled, dict):
+    enabled = {}
+enabled[key] = True
+settings["enabledPlugins"] = enabled
 
 tmp = path + ".tmp"
 with open(tmp, "w") as f:
