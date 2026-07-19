@@ -8,6 +8,11 @@
       "name": "freelunch",
       "source": "./freelunch",
       "description": "Speed-first plugin that forces every task onto concurrent background Sonnet agents with zero idle time"
+    },
+    {
+      "name": "terse",
+      "source": "./terse",
+      "description": "Output-token compression scoped to conversational prose — never worker prompts, contracts, code, or safety-critical text. Three levels via /terse."
     }
   ]
 }
