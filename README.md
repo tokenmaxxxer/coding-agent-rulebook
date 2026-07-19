@@ -4,6 +4,17 @@ A Claude Code plugin marketplace by Jung Jiwon & Lee Jongkwan: a steering stack 
 
 The stack's thesis: **no verification anywhere.** Every plugin steers *before* generation — what the field expects, what structure fits, how real it must be, how fast it gets built, how tersely it gets reported. Nothing inspects after. That is what keeps the savings free.
 
+## Why steer, not verify
+
+Verification is the work of closing the gap between an artifact and the *user's oracle* — the standard, usually unstated and often shifting, by which the result will be judged. That oracle moves between turns and frequently sits outside the model's pretrained distribution, so a generating turn cannot reconstruct it. Asking a model to check its own output against an oracle it does not hold is neutral at best, and in the reasoning literature it tends to *degrade* the result — the fused generate–check–repair turn spends a large fixed cost adjudicating a target it can't know, and stalls below it.
+
+So the stack splits the two layers that most harnesses fuse:
+
+- **Generation layer — the agent.** A pure generator, run raw: no self-review, no re-reading, no repair loop. Because every agent draws on the same pretrained distribution they are interchangeable, which is exactly what licenses fanning a task across many cheap equal workers and cutting wall-clock.
+- **Verification layer — you.** The oracle lives with the human. Your feedback across rounds *is* the verification procedure.
+
+The economics follow: cheap turns make failure cheap, and **fifty small failures at cost 1 beat one expensive, self-verifying failure at cost 100**. Parallel generation buys speed; human feedback — not the model's self-scrutiny, and not raw agent count (equal agents share blind spots and fail alike) — is what converges the artifact onto the oracle. Steering plugins simply shorten that convergence by moving the generator's *prior* toward the oracle before it writes, never by inspecting the *sample* after. The full argument, with citations and internal measurements, is the position paper *Generation Is All You Need* (Jung & Lee).
+
 ## Install
 
 One line, no clone (works with the standalone CLI or with only the VSCode extension):
