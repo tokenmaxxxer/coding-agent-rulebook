@@ -13,6 +13,11 @@
       "name": "terse",
       "source": "./terse",
       "description": "Output-token compression scoped to conversational prose — never worker prompts, contracts, code, or safety-critical text. Three levels via /terse."
+    },
+    {
+      "name": "blueprint",
+      "source": "./blueprint",
+      "description": "Archetype-based architecture selection from a queryable database: deterministic classify/recommend CLI, anti-pattern checks, and the fan-out contract to freeze before dispatching workers."
     }
   ]
 }

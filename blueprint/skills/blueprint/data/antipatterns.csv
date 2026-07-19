@@ -1,0 +1,37 @@
+archetype,name,smell,instead
+script,class-wrapped-script,"a 50-line linear flow wrapped in a class with __init__/run()/main()","top-to-bottom flow with `if __name__ == '__main__':` as the entry point"
+library,just-in-case-exports,"internal utilities exposed 'in case someone needs them'","every export is a forever commitment — keep the public surface minimal"
+library,utils-module,"a module named utils or helpers","name modules by what they do, not by where leftovers landed"
+data-centric,fat-controller,"business rules living in the request handler","rules belong in the service layer; the controller parses, calls, formats"
+data-centric,sql-in-service,"SQL strings or ORM calls inside service methods","the repository encapsulates the store; services call the repository interface"
+domain-rich,anemic-domain-model,"domain objects that are mostly getters and setters","put behavior on the object (`order.total()`), or admit it's data-centric and reclassify"
+domain-rich,framework-in-domain,"ORM annotations or framework imports on domain entities","persistence mapping lives in infrastructure; the domain stays framework-free"
+event-driven,rpc-in-disguise,"a handler that synchronously calls three services and rolls back on failure","emit the event and let handlers react; compensation is eventual, not transactional"
+pipeline,mega-stage,"one stage that filters AND enriches AND aggregates","three stages composed; each stage does exactly one transformation"
+plugin-system,core-imports-plugin,"the core package importing any plugin package","dependencies point only from plugin to core, mediated by the extension-point interface"
+any,speculative-generality,"an abstraction built for a future that isn't confirmed","rule of three: three cases today, or one plus a confirmed second"
+any,monolith-file,"a 3000-line file because 'it started simple'","classify the archetype and split along its module lines before adding more"
+any,pattern-by-familiarity,"Repository-Service-Controller stack on a script with two database calls","structure is a function of what the code is and what changes about it — classify first"
+ui-state-flow,shadow-state,a component copies store data into local state and hand-syncs it,read through a selector; if it must diverge it is not the same state
+ui-state-flow,impure-reducer,"network calls, timers, or randomness inside a reducer/state-holder",push effects to the effect layer; keep state transitions pure
+ui-state-flow,god-viewmodel,one state-holder backing multiple unrelated screens,one state-holder per screen/navigation destination
+feature-module,cross-feature-import,feature A imports feature B internals directly,route through the shell navigation or the slice public API only
+feature-module,shared-dumping-ground,shared/ fills with business-specific helpers,a helper that encodes a domain concept becomes its own slice
+feature-module,mega-feature-module,one feature module accretes ten unrelated screens,cut at one user-facing capability per module
+design-system,leaky-organism,a library component imports an app hook or calls an app API,pass data via props; the library stays ignorant of consumers
+design-system,token-drift,features hardcode hex/px values beside the token system,consume tokens exclusively; add a token before a one-off value
+distributed-service,distributed-monolith,services split over the network but sharing one database or deploying in lockstep,"database-per-service and independent deploy pipelines, or admit the monolith"
+distributed-service,chatty-services,one user request fanning into many synchronous inter-service calls,async events or precomputed read views instead of call chains
+agent-loop,hidden-control-flow,the runner special-cases tool names to decide what happens next,keep the runner generic; branching lives in the model tool choice
+agent-loop,unbounded-loop,"no max-iteration, cost, or stop-condition check",an explicit runner-checked stop condition every iteration
+orchestrator-worker,god-orchestrator,the orchestrator embeds worker domain logic,"the orchestrator only plans, dispatches, and synthesizes"
+orchestrator-worker,cross-worker-chatter,workers calling each other or sharing a mutable scratchpad,all inter-worker information routes through orchestrator synthesis
+orchestrator-worker,sequential-forced,dynamic multi-agent decomposition applied to strictly sequential work,use a pipeline or prompt chain; reserve fan-out for independent subtasks
+declarative-infra,copy-pasted-environments,dev/staging/prod folders hand-copying the same resource blocks,DRY into shared modules; environments are thin parameter sets
+declarative-infra,monolithic-state-blob,all environments and resources in one state file,isolate state per environment-layer instantiation
+declarative-infra,manual-drift,hand-editing live resources managed by the declarative tree,every change lands as a commit; the reconciler is the only writer
+ml-train-serve,shadow-feature-logic,serving reimplements feature computation in a second codebase,one shared transformation definition materialized to both stores
+ml-train-serve,point-in-time-leakage,training joins features without event-time cutoffs,point-in-time-correct retrieval from the feature store
+ml-train-serve,direct-to-prod-deploy,a notebook pushes its artifact straight to serving,"deploys come only from the versioned, approval-gated model registry"
+ecs,god-system,one system reading/writing far more component types than its concern,narrow systems touching the minimum component set
+ecs,behavior-in-component,components growing update logic,components stay pure data; logic lives in systems

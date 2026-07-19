@@ -1,0 +1,8 @@
+{
+  "name": "blueprint",
+  "version": "0.2.0",
+  "description": "Situational code-architecture selection as a queryable database instead of prompt text: classify the task into one of sixteen archetypes (backend, UI, mobile, infra, ML, agent, game, distributed) via a deterministic CLI, get the structure, gates, anti-patterns, and the fan-out contract to freeze before dispatching parallel workers.",
+  "author": {
+    "name": "Jung Jiwon & Lee Jongkwan"
+  }
+}

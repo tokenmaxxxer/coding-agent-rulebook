@@ -1,0 +1,26 @@
+type,when,then,reason
+route,"called by external code (not just the same app)",library,"the public API becomes a maintenance contract"
+route,"the external caller is a plugin or extension",plugin-system,"core must depend on interfaces only"
+route,"business rules exist even without a database",domain-rich,"rules independent of persistence deserve a domain layer"
+route,"mostly moving data in and out with validation",data-centric,"a domain model would cost more than it saves"
+route,"the data movement IS the point (transform, not serve)",pipeline,"structure follows stages, not layers"
+route,"asynchronous messages cross process boundaries",event-driven,"eventual consistency changes every structural rule"
+route,"none of the above; one-off execution",script,"no callers means no contract to protect"
+veto,"single file, single concern, no callers beyond the immediate task",no-structure,"ceremony where it doesn't earn its keep — just write it correctly; note 'this is a script; flat is fine'"
+tiebreak,"torn between data-centric and domain-rich",data-centric,"start one archetype simpler: upgrading is a straightforward extraction, downgrading is dismantling dead weight"
+discipline,"about to add a layer",name the independent change that layer contains — or drop the layer,"structure exists to contain change (Parnas 1972); a layer that never repays itself in a future change was a mistake"
+discipline,"about to apply Repository/Strategy/Factory/Observer",require three concrete cases today — or one case plus a confirmed second in the visible horizon,"rule of three; forty years of 'someday' abstractions never paid rent (YAGNI)"
+discipline,"one person will maintain all of this code",collapse elaborate module boundaries,"Conway's Law: boundaries protect team seams; with one owner they protect nothing"
+discipline,"the system spans multiple archetypes",classify each component separately and name the boundary between them,"do not force one archetype onto the whole system"
+discipline,"choosing where module boundaries go",each module hides exactly one design decision likely to change,"Parnas's test: if you can't name the hidden decision, the module doesn't earn its existence"
+route,building UI screens or views (web or mobile),ui-state-flow,"rendering as a pure function of state is the settled idiom across React/Redux, Elm, SwiftUI, and Compose"
+route,UI grown to many features needing team-scale partitioning,feature-module,vertical feature slices with public APIs keep teams and workers from colliding
+route,building a reusable UI component library or design tokens,design-system,the primitive layer must stay ignorant of every consuming app
+route,multiple independently deployable services over a network,distributed-service,independent deploys require exclusive data ownership and published contracts
+route,an LLM drives decisions through tool calls in a host loop,agent-loop,the host stays generic; intelligence lives in the model and the tool registry
+route,an LLM decomposes work at runtime and dispatches sub-agents,orchestrator-worker,isolation between workers is what makes runtime decomposition safe
+route,declaring infrastructure or deployment desired state (Terraform/K8s),declarative-infra,environment-agnostic modules plus thin parameterization is the cross-tool consensus
+route,ML features and models with separate training and serving paths,ml-train-serve,training/serving skew is the defining failure; one shared transform path prevents it
+route,realtime simulation with many entity types sharing behaviors,ecs,composition over inheritance at data-layout granularity
+discipline,tempted to split command and query models (CQRS),apply only inside one bounded context with measured asymmetric read/write load — never as the whole-app default,"Fowler and Azure guidance both warn against broad CQRS; it refines event-driven, it does not replace it"
+discipline,stateful concurrent entities exchanging messages in-process (actor style),"apply event-driven rules at actor granularity: one actor type per worker, freeze message protocols",the actor model is event-driven with per-entity state ownership
