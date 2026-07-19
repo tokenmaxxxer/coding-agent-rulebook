@@ -4,7 +4,8 @@
 # VSCode extension); falls back to writing ~/.claude/settings.json directly.
 set -u
 
-ROOT="$(cd "$(dirname "$0")" && pwd)"
+# The script lives in freelunch/ (the plugin dir); the marketplace root is one up.
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MARKET="tokenmaxxxer"
 PLUGIN="freelunch"
 
