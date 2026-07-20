@@ -77,6 +77,10 @@ cd claude-plugins && ./install.sh   # repo-root installer: installs the whole st
 
 Then reload the VSCode window. The installer prefers a PATH `claude`, then the extension's bundled CLI, and as a last resort writes `~/.claude/settings.json` directly (backing up the original). Idempotent — safe to re-run.
 
+## Telemetry & optional enforcement
+
+A PreToolUse hook (`hooks/observe.sh`) logs every Agent/Task/Workflow dispatch to `~/.claude/freelunch-observe.jsonl` (override: `FREELUNCH_OBSERVE_LOG`), flagging the one syntactically checkable NEVER rule — synchronous agent dispatch (`run_in_background: false`). Default is observe-only: nothing is ever blocked. With `FREELUNCH_ENFORCE=1` a flagged call is denied with a corrective reason and the model re-issues it as a background dispatch — semantically equivalent, no work lost (validated live: deny → auto-retry background → task completed). Known blind spot: `agent()` calls inside a Workflow script are SDK-internal and don't pass through PreToolUse; only the Workflow dispatch itself is logged. `FREELUNCH_OFF=1` disables logging and enforcement along with everything else.
+
 ## Temporarily disable
 
 ```
