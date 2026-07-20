@@ -13,7 +13,13 @@ So the stack splits the two layers that most harnesses fuse:
 - **Generation layer — the agent.** A pure generator, run raw: no self-review, no re-reading, no repair loop. Because every agent draws on the same pretrained distribution they are interchangeable, which is exactly what licenses fanning a task across many cheap equal workers and cutting wall-clock.
 - **Verification layer — you.** The oracle lives with the human. Your feedback across rounds *is* the verification procedure.
 
-The economics follow: cheap turns make failure cheap, and **fifty small failures at cost 1 beat one expensive, self-verifying failure at cost 100**. Parallel generation buys speed; human feedback — not the model's self-scrutiny, and not raw agent count (equal agents share blind spots and fail alike) — is what converges the artifact onto the oracle. Steering plugins simply shorten that convergence by moving the generator's *prior* toward the oracle before it writes, never by inspecting the *sample* after. The full argument, with citations and internal measurements, is the position paper *Generation Is All You Need* (Jung & Lee).
+The economics follow: cheap turns make failure cheap, and **fifty small failures at cost 1 beat one expensive, self-verifying failure at cost 100**. Parallel generation buys speed; human feedback — not the model's self-scrutiny, and not raw agent count (equal agents share blind spots and fail alike) — is what converges the artifact onto the oracle. Steering plugins simply shorten that convergence by moving the generator's *prior* toward the oracle before it writes, never by inspecting the *sample* after. The full argument, with citations and internal measurements, is the position paper [*Generation Is All You Need*](docs/generation-is-all-you-need.md) (Jung & Lee).
+
+The headline measurement — the freelunch plugin's on/off ablation, 18 tasks, 72 headless runs, scored by hidden test scripts:
+
+<img src="docs/assets/figure-4-ablation-speedup.svg" alt="Measured per-task wall-clock speedup of the parallel-generation plugin across 18 tasks: geometric mean 1.50x, one task slower, quality tied at 630 of 632 checks in both arms" width="700">
+
+Geometric mean **1.50× faster at tied quality** (630/632 checks pass in each arm), with the one task that ran slower under fan-out reported rather than trimmed.
 
 ## Install
 
