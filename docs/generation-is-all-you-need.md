@@ -25,7 +25,7 @@ This is not an argument that verification is unnecessary. It is an argument abou
 
 We build the argument in five moves: the oracle is a moving target (§2); the model cannot verify against it from inside a turn (§3); therefore the layers must separate (§4); separation makes generation cheap and parallel (§5); and cheap parallel generation plus human feedback is the actual convergence mechanism (§6). We then state the conditions under which the thesis holds and fails (§7), report internal experiments (§8), and position against related work (§9).
 
-Three figures carry the intuition: **Figure 1** (§3) shows what each kind of verification does across rounds; **Figure 2** (§4) contrasts the two architectures — verification fused into the turn vs. given its own layer; **Figure 3** (§6) shows distance-to-oracle vs. cost for each. Figures 1 and 3 are schematic — they illustrate the mechanism, not measured data (the measured data is §8).
+Three figures carry the intuition: **Figure 1** (§3) shows what each kind of verification does across rounds; **Figure 2** (§4) contrasts the two architectures — verification fused into the turn vs. given its own layer; **Figure 3** (§6) shows distance-to-oracle vs. cost for each. Figures 1 and 3 are schematic — they illustrate the mechanism, not measured data; the measured data is §8, where **Figure 4** plots the ablation's per-task results.
 
 ---
 
@@ -134,6 +134,11 @@ We report small experiments run within the `tokenmaxxxer` stack. They are consis
 - **Fan-out holds at mid-project scale.** A 12-file, five-domain REST service (cross-domain validation, file persistence, bearer auth) built against one frozen ~90-line contract: 7 parallel workers vs. a single-agent control, judged by a 34-assertion end-to-end test **pre-registered before generation**. Both arms passed 34/34; the parallel arm finished in 47.8 s vs. 125.0 s (2.6×), with zero cross-worker integration defects on first boot. The check lived entirely in the harness; no worker verified anything. *Limit: single run per arm, greenfield, contract-amenable task.*
 - **Sub-turn parallelism is real when the contract is frozen.** One worker per exported symbol, mechanically concatenated, vs. a whole-module control (pre-registered 60-assertion battery): 2.7× wall-clock at equal quality. The one failure class — a worker omitting an `export` keyword — was a *seam* defect, eliminated not by a review pass but by freezing each unit's signature line in the contract (a steering act, §4): zero seam defects across all subsequent signature-frozen runs.
 - **A null result, reported.** Adding a security-*steering* directive (direction only, no scan) to vulnerability-prone generation tasks produced **no measurable improvement**: 8/8 secure in both arms, because a frontier generator already selects the secure pattern unprompted. We record this as the in-distribution boundary case of §7, not as a success. *Two initial "failures" were scorer false positives, corrected by inspection; the scorer is grep-based and single-run.*
+
+<figure>
+<img src="assets/figure-4-ablation-speedup.svg" alt="Measured per-task wall-clock speedup of the parallel-generation plugin across 18 tasks: geometric mean 1.50x, one task slower, quality tied at 630 of 632 checks in both arms" width="700">
+<em>Figure 4 (measured, not schematic). Per-task wall-clock speedup from the plugin ablation (first bullet): mean wall-clock with the plugin off divided by mean with it on, per task (18 tasks × 2 arms × 2 reps = 72 headless runs). Geometric mean 1.50× (dashed); one task, <code>dom-infra</code>, ran slower under fan-out — reported, not trimmed. Quality is tied at 630/632 hidden checks passing in each arm, so the speedup is not bought with correctness. Raw data: <code>experiments/results.csv</code> in the research clone.</em>
+</figure>
 
 The pattern across all four: the generating turn never verified, the checks lived above it, and the results were competitive or better at markedly lower cost — with the honest exception that steering buys nothing when the baseline is already at the oracle.
 
