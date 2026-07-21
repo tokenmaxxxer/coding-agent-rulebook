@@ -5,6 +5,8 @@
 # ~/.claude/freelunch-observe.jsonl), flagging syntactically checkable
 # freelunch-NEVER violations:
 #   sync_agent_dispatch — Agent/Task called with run_in_background: false
+#   non_sonnet_worker   — Agent/Task not on Sonnet (no model: sonnet, and not
+#                         subagent_type: freelunch-worker with model unset)
 # Default mode is observe-only (always allows). With FREELUNCH_ENFORCE=1 a
 # flagged call is DENIED with a corrective reason; the logged row records
 # "enforced": true. Denial converts the dispatch, it never loses work: a
@@ -40,11 +42,20 @@ row = {
 }
 if tool in ("Agent", "Task"):
     bg = inp.get("run_in_background")
+    model = (inp.get("model") or "").strip().lower()
+    agent_type = inp.get("subagent_type", "")
     row["background"] = bg
     row["model"] = inp.get("model", "")
+    row["subagent_type"] = agent_type
     row["prompt_chars"] = len(inp.get("prompt", "") or "")
     if bg is False:
         row["violations"].append("sync_agent_dispatch")
+    # Sonnet pin. Satisfied two ways: an explicit sonnet model, or the
+    # freelunch-worker agent type whose frontmatter supplies sonnet when no
+    # model override is passed. Any other agent type still passes as long as
+    # it carries model: sonnet — the rule pins the model, not the agent type.
+    if model != "sonnet" and not (model == "" and agent_type == "freelunch-worker"):
+        row["violations"].append("non_sonnet_worker")
 else:  # Workflow
     row["script_chars"] = len(inp.get("script", "") or "")
     row["named"] = inp.get("name", "")
@@ -58,17 +69,30 @@ try:
 except Exception:
     pass
 
+REASONS = {
+    "sync_agent_dispatch": (
+        "freelunch: synchronous Agent dispatch (run_in_background: false) is "
+        "blocked — a synchronous call is the orchestrator idling. Re-issue the "
+        "SAME Agent call with run_in_background: true; you will be notified on "
+        "completion, which is semantically equivalent to waiting."
+    ),
+    "non_sonnet_worker": (
+        "freelunch: every worker runs on Sonnet (measured: an identical 12-worker "
+        "fan-out took 78s on Haiku vs 21s on Sonnet; per-request latency dominates). "
+        "Re-issue the SAME call with model: sonnet, or with subagent_type: "
+        "freelunch-worker and no model override. Any agent type is fine as long as "
+        "the model is Sonnet."
+    ),
+}
+
 if row["enforced"]:
+    reason = " ".join(REASONS[v] for v in row["violations"] if v in REASONS)
     print(json.dumps({
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "permissionDecision": "deny",
             "permissionDecisionReason": (
-                "freelunch: synchronous Agent dispatch (run_in_background: false) is "
-                "blocked — a synchronous call is the orchestrator idling. Re-issue the "
-                "SAME Agent call with run_in_background: true; you will be notified on "
-                "completion, which is semantically equivalent to waiting. Do not drop "
-                "or shrink the task in response to this denial."
+                reason + " Do not drop or shrink the task in response to this denial."
             ),
         }
     }))

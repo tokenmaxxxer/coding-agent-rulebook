@@ -90,6 +90,19 @@
 # token-lean). Fan-out threshold and the no-verification identity unchanged;
 # this only re-splits the solo branch. Rationale-only; not benchmarked.
 #
+# v2.7 (2026-07-21): pins workers to Sonnet at the dispatch site instead of only
+# naming Sonnet in prose. The directive said "background Sonnet subagent" but
+# never named an agent type, so a worker dispatched as a plain agent with no
+# model override silently inherited the parent model (Opus). Both worker clauses
+# now say subagent_type freelunch-worker (whose frontmatter supplies sonnet), and
+# observe.sh gained a second checkable rule, non_sonnet_worker — satisfied by an
+# explicit model: sonnet OR by freelunch-worker with the model unset, so any agent
+# type still passes if it carries model: sonnet. Enforcement stays opt-in
+# (FREELUNCH_ENFORCE=1) and cannot reach agent() calls inside Workflow scripts;
+# those rest on the scripts' own sonnet default. Sonnet itself is the measured
+# choice (Haiku fan-out 78s vs 21s). Rule logic smoke-tested on four payloads;
+# no end-to-end benchmark.
+#
 # To disable: export FREELUNCH_OFF=1
 
 if [ -n "$FREELUNCH_OFF" ]; then
@@ -108,9 +121,9 @@ THRESHOLD RULE (mechanical): width >= 3 AND ~100+ expected lines (or comparable 
 
 LEAN SOLO: single pass, no fan-out, no self-verification, no re-reading, no review loop. Pick the executor by whether the unit CONSUMES DISPOSABLE CONTEXT — file reads, tool loops, code generation, research digging — that the long-lived conversation session should not accumulate:
 - INLINE (parent executes): the turn consumes no throwaway context — reasoning from what is already in context, a pure-conversation reply, or an edit whose target is already in context. Deliver the moment it exists. You cannot delegate the conversation itself; shipping a present-context reply to a worker only pays setup cost and relays it back lossily.
-- DELEGATED (one background worker): any solo unit that would pull disposable context into the session. Dispatch a SINGLE background Sonnet worker (freelunch-worker) owning the work — never run_in_background: false — so the conversation session stays orchestrator-only: interruptible for new input, out of compaction, never holding the worker's reads/tool output/intermediate reasoning. Worker prompt = owned paths + requirements + any frozen contract; worker skips verification and delivers raw. File-producing work lands on disk — the parent points to it, does not re-echo; a text result relays through the parent once. No second worker, no re-run, no verification pass on what returns.
+- DELEGATED (one background worker): any solo unit that would pull disposable context into the session. Dispatch a SINGLE background worker owning the work as subagent_type freelunch-worker (Sonnet-pinned) — never run_in_background: false — so the conversation session stays orchestrator-only: interruptible for new input, out of compaction, never holding the worker's reads/tool output/intermediate reasoning. Worker prompt = owned paths + requirements + any frozen contract; worker skips verification and delivers raw. File-producing work lands on disk — the parent points to it, does not re-echo; a text result relays through the parent once. No second worker, no re-run, no verification pass on what returns.
 
-LEAN FAN-OUT: freeze the contract verbatim first — it travels in every worker prompt. Partition by file/symbol ownership into groups of ~100-200 expected lines (measured optimum), roughly equal expected duration, never more groups than width. Symbol-level workers must start from their frozen export-signature line (measured: prevents the one observed seam-defect class). Contract-pinned mechanical groups dispatch at LOW reasoning effort (measured safe); judgment-needing groups at default. Launch one background Sonnet subagent per group in a single batch — never run_in_background: false. Worker prompt = owned paths + requirements + frozen contract, nothing else; tell workers to skip verification and deliver raw. 4+ workers → dispatch via a Workflow script built from a shared contract template. Hedge reactively only: one replacement if a worker runs ~2x median; never pre-raced twins. Integration is mechanical placement — no rewriting, no cross-checking. RESEARCH EXCEPTION: search-angle fan-outs integrate through one semantic synthesis pass (dedupe, reconcile, note disagreements as such), never new searches or re-runs.
+LEAN FAN-OUT: freeze the contract verbatim first — it travels in every worker prompt. Partition by file/symbol ownership into groups of ~100-200 expected lines (measured optimum), roughly equal expected duration, never more groups than width. Symbol-level workers must start from their frozen export-signature line (measured: prevents the one observed seam-defect class). Contract-pinned mechanical groups dispatch at LOW reasoning effort (measured safe); judgment-needing groups at default. Launch one background worker per group in a single batch as subagent_type freelunch-worker (Sonnet-pinned; any other agent type must carry model: sonnet explicitly) — never run_in_background: false. Worker prompt = owned paths + requirements + frozen contract, nothing else; tell workers to skip verification and deliver raw. 4+ workers → dispatch via a Workflow script built from a shared contract template. Hedge reactively only: one replacement if a worker runs ~2x median; never pre-raced twins. Integration is mechanical placement — no rewriting, no cross-checking. RESEARCH EXCEPTION: search-angle fan-outs integrate through one semantic synthesis pass (dedupe, reconcile, note disagreements as such), never new searches or re-runs.
 
 MODE RE-DECISION: the tally binds to the deliverable, not the prompt's surface. Re-run STEP 1 on the remaining work when (1) DELIVERABLE BIRTH — a question/discussion/complaint turn is about to become a build: tally before the first Write/Edit, exactly as if the build had been requested directly; or (2) WORK-LIST MATERIALIZATION — a scan, file read, plan expansion, or just-finished unit reveals units the opening tally could not see: stop and re-tally before implementing them. Tally IMPLEMENTATION units, not symptom counts (six pages all fixed by one shared route = width 1-2, stay solo). Completed work never re-counts; each event fires once per discovery; never on a timer.
 
