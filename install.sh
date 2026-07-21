@@ -52,6 +52,15 @@ if [ -n "$CLI" ] && [ -x "$CLI" ]; then
     "$CLI" plugin install "$plugin@$MARKET" --scope user
   done
   "$CLI" plugin install "$BUNDLE@$MARKET" --scope user
+  # Then update each to the marketplace's latest. `install` on an already-present
+  # plugin may no-op, so after the marketplace refresh an explicit `update` is
+  # what actually pulls a newer version (e.g. freelunch 0.2.10 -> 0.2.11).
+  # Updating the bundle alone would not move its unpinned dependencies, so update
+  # each plugin explicitly, same list as the install loop.
+  for plugin in freelunch terse blueprint no-mock scout no-footgun; do
+    "$CLI" plugin update "$plugin@$MARKET" || true
+  done
+  "$CLI" plugin update "$BUNDLE@$MARKET" || true
   echo "==> installed $BUNDLE@$MARKET and the full stack."
 else
   echo "==> no claude CLI found (standalone or bundled): writing settings directly"
