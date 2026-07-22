@@ -1,8 +1,11 @@
 name: dispatch
 
-# Reference git-event runner for the dispatch plugin. It turns GitHub events into
-# oriented, headless Claude Code runs that communicate only through git — the
-# "delivery" half that the plugin (the "discipline" half) is built to sit on.
+# Reference git-event runner for the dispatch plugin — a TEMPLATE, not an active
+# workflow. Copy it into a CONSUMER repo's .github/workflows/ (it does not live
+# there in this marketplace repo, which has no API secret and must not run the
+# runner against itself). It turns GitHub events into oriented, headless Claude
+# Code runs that communicate only through git — the "delivery" half that the
+# plugin (the "discipline" half) is built to sit on.
 # Setup (secret), security notes, and known caveats: docs/handbooks/dispatch-runner.md
 
 on:

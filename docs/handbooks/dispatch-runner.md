@@ -1,7 +1,11 @@
 # dispatch runner (reference)
 
-`.github/workflows/dispatch.yml` is a **reference git-event runner** for the
-`dispatch` plugin. dispatch is the *discipline* half — how an agent behaves once
+`dispatch/runner/dispatch.yml` is a **reference git-event runner template** for
+the `dispatch` plugin — copy it into a **consumer repo's** `.github/workflows/`
+to activate it. It intentionally does **not** live under `.github/workflows/` in
+this marketplace repo: there is no API secret here, and the marketplace must not
+run the runner against itself (it would fail on every issue/PR/comment).
+dispatch is the *discipline* half — how an agent behaves once
 it is running (git is the only channel, orient before acting, deliver decisions
 to the remote, terminate on the remote). This workflow is the *delivery* half —
 it turns a GitHub event into a headless Claude Code run so the loop starts from
