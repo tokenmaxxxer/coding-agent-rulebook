@@ -35,6 +35,11 @@
       "description": "Direction-only security steering: names the threat patterns for the surface being built so the secure pattern is chosen at write time — surface-gated, cascading custom rules, zero review passes or scans."
     },
     {
+      "name": "doctrine",
+      "source": "./doctrine",
+      "description": "Documentation placement doctrine: six lifetime-based buckets under docs/, a directive that classifies at write time, and a PreToolUse gate that refuses any write landing outside them — every file under docs/, markdown anywhere else. No doc audits, no post-hoc review."
+    },
+    {
       "name": "tokenmaxxxer-env",
       "source": "./tokenmaxxxer-env",
       "description": "One-install environment bundle: installs the whole tokenmaxxxer steering stack via dependencies."

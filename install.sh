@@ -48,7 +48,7 @@ if [ -n "$CLI" ] && [ -x "$CLI" ]; then
   # auto-install a dependency ADDED to an already-installed bundle, so relying
   # on bundle-side resolution breaks upgrades; explicit installs are idempotent
   # and make "re-run the installer" the fix for every dependency error.
-  for plugin in freelunch terse blueprint no-mock scout no-footgun; do
+  for plugin in freelunch terse blueprint no-mock scout no-footgun doctrine; do
     "$CLI" plugin install "$plugin@$MARKET" --scope user
   done
   "$CLI" plugin install "$BUNDLE@$MARKET" --scope user
@@ -57,7 +57,7 @@ if [ -n "$CLI" ] && [ -x "$CLI" ]; then
   # what actually pulls a newer version (e.g. freelunch 0.2.10 -> 0.2.11).
   # Updating the bundle alone would not move its unpinned dependencies, so update
   # each plugin explicitly, same list as the install loop.
-  for plugin in freelunch terse blueprint no-mock scout no-footgun; do
+  for plugin in freelunch terse blueprint no-mock scout no-footgun doctrine; do
     "$CLI" plugin update "$plugin@$MARKET" || true
   done
   "$CLI" plugin update "$BUNDLE@$MARKET" || true
