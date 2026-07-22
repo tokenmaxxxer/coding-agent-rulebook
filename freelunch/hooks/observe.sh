@@ -13,7 +13,7 @@
 # background dispatch + completion notification is semantically equivalent
 # to waiting synchronously. Kill switch: FREELUNCH_OFF=1 (no log, no deny).
 
-[ -n "${FREELUNCH_OFF:-}" ] && exit 0
+case "${FREELUNCH_OFF:-}" in ""|0|false|no|off) ;; *) exit 0 ;; esac
 LOG="${FREELUNCH_OBSERVE_LOG:-$HOME/.claude/freelunch-observe.jsonl}"
 
 # Capture the hook payload BEFORE anything else touches stdin.

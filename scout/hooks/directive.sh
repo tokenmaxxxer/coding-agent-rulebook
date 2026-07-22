@@ -16,9 +16,13 @@
 #    directional instead of deep-research fan-out.
 # Kill switch: export SCOUT_OFF=1
 
-if [ -n "$SCOUT_OFF" ]; then
-  exit 0
-fi
+# Off means off: `X_OFF=0` and `X_OFF=false` read as "not off" to a user and to
+# most tooling, but any non-empty value used to disable the hook — the kill switch
+# silently killed it on exactly the spelling meant to keep it alive.
+case "${SCOUT_OFF:-}" in
+  ""|0|false|no|off) ;;
+  *) exit 0 ;;
+esac
 
 cat <<'EOF'
 <scout-directive priority="high">

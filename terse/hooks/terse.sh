@@ -14,9 +14,13 @@
 # Missing file means "full". The /terse command writes this file.
 # Kill switch: export TERSE_OFF=1 (mirrors FREELUNCH_OFF).
 
-if [ -n "$TERSE_OFF" ]; then
-  exit 0
-fi
+# Off means off: `X_OFF=0` and `X_OFF=false` read as "not off" to a user and to
+# most tooling, but any non-empty value used to disable the hook — the kill switch
+# silently killed it on exactly the spelling meant to keep it alive.
+case "${TERSE_OFF:-}" in
+  ""|0|false|no|off) ;;
+  *) exit 0 ;;
+esac
 
 STATE_FILE="${HOME}/.claude/terse.level"
 LEVEL="full"
