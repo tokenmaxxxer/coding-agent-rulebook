@@ -62,8 +62,19 @@ for f in "$HOME/.claude/no-footgun.md" "./.claude/no-footgun.md"; do
     echo "</no-footgun-project-rules>"
   elif [ -f "$f" ]; then
     if [ -r "$f" ] && contents="$(cat "$f" 2>/dev/null)"; then
+      # This file is injected on EVERY prompt. An oversized one (a stray log, a
+      # pasted dump) would quietly consume the context budget forever, so cut it
+      # and say so rather than letting the cost hide.
+      limit=16384
+      size=${#contents}
       echo "<no-footgun-project-rules src=\"$f\">"
-      printf '%s\n' "$contents"
+      if [ "$size" -gt "$limit" ]; then
+        printf '%s\n' "${contents:0:$limit}"
+        echo "... [truncated: this rules file is ${size} bytes and is injected on every prompt;"
+        echo "only the first ${limit} are in effect. Trim it, or split what matters into rules.]"
+      else
+        printf '%s\n' "$contents"
+      fi
       echo "</no-footgun-project-rules>"
     else
       echo "<no-footgun-project-rules src=\"$f\" status=\"unreadable\">"

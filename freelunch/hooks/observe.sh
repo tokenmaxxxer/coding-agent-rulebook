@@ -54,7 +54,10 @@ if tool in ("Agent", "Task"):
     # freelunch-worker agent type whose frontmatter supplies sonnet when no
     # model override is passed. Any other agent type still passes as long as
     # it carries model: sonnet — the rule pins the model, not the agent type.
-    if model != "sonnet" and not (model == "" and agent_type == "freelunch-worker"):
+    # "sonnet", "claude-sonnet-5", "us.anthropic.claude-sonnet-…" are all the pin;
+    # exact-matching "sonnet" logged legitimate dispatches as violations, which
+    # quietly corrupts the record the stack uses to judge its own policies.
+    if "sonnet" not in model and not (model == "" and agent_type == "freelunch-worker"):
         row["violations"].append("non_sonnet_worker")
 else:  # Workflow
     row["script_chars"] = len(inp.get("script", "") or "")

@@ -29,14 +29,14 @@ root = os.environ["WARRANT_ROOT"]
 branch = os.environ.get("WARRANT_BRANCH", "")
 proposals = os.path.join(root, "docs", "proposals")
 
-STATUS = re.compile(r"^status:\s*(\w+)\s*$", re.M)
+STATUS = re.compile(r"^status:\s*([A-Za-z]+)\s*(?:#.*)?$", re.M)
 
 
 def frontmatter(path):
     try:
-        with open(path, encoding="utf-8") as handle:
-            text = handle.read(4096)
-    except OSError:
+        with open(path, encoding="utf-8-sig") as handle:
+            text = handle.read(65536)
+    except (OSError, UnicodeDecodeError):
         return None
     if not text.startswith("---"):
         return None
@@ -52,7 +52,7 @@ for name in sorted(os.listdir(proposals)):
     if block is None:
         continue
     found = STATUS.search(block)
-    status = found.group(1) if found else "proposed"
+    status = found.group(1).lower() if found else "proposed"
     if status in ("proposed", "approved"):
         open_units.append((status, "docs/proposals/" + name))
 
@@ -64,7 +64,8 @@ for status, path in open_units:
     if status == "approved":
         try:
             shipped = subprocess.run(
-                ["git", "-C", root, "log", "--oneline", "--grep", "Proposal: " + path],
+                # -F: a proposal filename may contain regex metacharacters.
+                ["git", "-C", root, "log", "--oneline", "-F", "--grep", "Proposal: " + path],
                 capture_output=True, text=True, timeout=10,
             ).stdout.strip().splitlines()
         except (OSError, subprocess.SubprocessError):

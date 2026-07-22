@@ -80,6 +80,12 @@ market, bundle, source_json = sys.argv[1], sys.argv[2], sys.argv[3]
 key = f"{bundle}@{market}"
 path = os.path.expanduser("~/.claude/settings.json")
 os.makedirs(os.path.dirname(path), exist_ok=True)
+# A dotfiles setup often symlinks this file. os.replace() below would swap the
+# link for a regular file and quietly detach the user's real settings, so write
+# through to whatever it points at.
+if os.path.islink(path):
+    path = os.path.realpath(path)
+    print(f"    settings.json is a symlink; writing through to {path}")
 
 settings = {}
 if os.path.exists(path):

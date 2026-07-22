@@ -82,6 +82,17 @@ root = posixpath.normpath(root)
 if absolute != root and not absolute.startswith(root + "/"):
     allow()
 
+# A bucket entry can be a symlink. What the doctrine governs is where the bytes
+# land, so resolve first and then apply the ordinary rule to the destination: a
+# link out of docs/ is a document that is not in docs/, which this gate has no
+# claim on — exactly as if it had been written there directly.
+resolved = posixpath.normpath(os.path.realpath(absolute).replace("\\", "/"))
+real_root = posixpath.normpath(os.path.realpath(root).replace("\\", "/"))
+if absolute != resolved:
+    if resolved != real_root and not resolved.startswith(real_root + "/"):
+        allow()
+    absolute, root = resolved, real_root
+
 relative = absolute[len(root) + 1:]
 segments = [s for s in relative.split("/") if s not in ("", ".")]
 if not segments:
@@ -134,7 +145,8 @@ print(
     "kept current from now on -> handbooks/; why a hard-to-reverse choice was made -> decisions/; "
     "an observation fixed to a point in time -> reports/ (research under reports/research/).\n"
     "Create the bucket if it does not exist yet, then write there. Only docs/README.md may sit at the "
-    "top of docs/; paths in DOCTRINE_ALLOW are exempt."
+    "top of docs/; paths in DOCTRINE_ALLOW are exempt. A repository README describing other directories "
+    "does not change this — the buckets are enforced here, and DOCTRINE_ALLOW is how a repository adds to them."
     % (reason, buckets),
     file=sys.stderr,
 )

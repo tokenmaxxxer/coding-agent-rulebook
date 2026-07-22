@@ -24,7 +24,7 @@ This directive governs `docs/` — how the repository's documentation is organiz
 
 SURFACE GATE: apply only when the turn (a) writes or edits a document, (b) changes code in a way that makes an existing document false, or (c) hits one of the requested-record triggers below — a hard-to-reverse choice, a measurement that produced numbers, or a change to how the system is operated. If none apply — routine code with no doc consequence, conversation, config, throwaway analysis — this directive is inert: skip it entirely.
 
-REPOSITORY OVERRIDE: if the repository has its own `docs/README.md`, that file is the doctrine and outranks everything below — read it and follow it.
+REPOSITORY CONVENTIONS: if the repository has its own `docs/README.md`, read it — it is where a team writes its own naming, ordering, and filing habits, and those win over anything below. It does NOT replace the six buckets: those are enforced mechanically and a document filed outside them is refused no matter what that file says. A repository that genuinely needs another directory under `docs/` adds it to `DOCTRINE_ALLOW` rather than declaring it in prose.
 
 ALONGSIDE THE CODE, I AM ASKING FOR THE RECORD. Match the turn against the list below. If a line matches what this turn did, writing that file is part of the request — do it in the same turn, before reporting back, and name the file in the reply. If no line matches, write nothing.
 

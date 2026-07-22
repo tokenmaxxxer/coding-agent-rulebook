@@ -31,6 +31,21 @@ Tested and rejected along the way (kept as in-directive bans):
 - Sub-file splitting *as done in v1* (no frozen signatures, no packing): symbol-boundary and 250-line-cap cuts both lost to a solo pass at every file size tested, up to ~1500 lines. **Partially overturned in v2.4-2.5** — with each unit's export-signature line frozen verbatim in the contract and units packed to ~100-200 lines per worker, symbol-level fan-out won 2.7x at equal quality (see below). The v1-style naive cut stays banned.
 - Haiku workers: identical 12-worker fan-out took 78s on Haiku vs 21s on Sonnet — per-request latency dominates, "smaller = faster" is false here.
 
+## Observation vs enforcement
+
+The `PreToolUse` observer logs every Agent/Task/Workflow dispatch and flags two
+violations — a synchronous dispatch, and a worker on a model other than Sonnet.
+**It only denies them when `FREELUNCH_ENFORCE=1` is set.** Without that variable
+the violations are recorded to `~/.claude/freelunch-observe.jsonl` and the call
+proceeds, so a session can drift from the directive with nothing in the
+transcript to show for it. Set the variable to make the two rules binding:
+
+```sh
+export FREELUNCH_ENFORCE=1
+```
+
+Kill switch for both logging and enforcement: `FREELUNCH_OFF=1`.
+
 ## How it works
 
 - `hooks/freelunch.sh` — `UserPromptSubmit` hook that injects the forcing directive into context on every prompt.
