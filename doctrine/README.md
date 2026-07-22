@@ -59,6 +59,23 @@ written; a change that falsifies a document fixes it in the same turn; no
 document restates a fact another one owns. Surface-gated: inert on turns that
 touch no documentation, and silent about everything outside `docs/`.
 
+It also asks for a record when a turn settles a hard-to-reverse choice, produces
+measurements, or changes how the system is operated. **That part is weak, and
+the number is here rather than hidden.** Written as a third-person rule it never
+fired: zero documents in six headless runs across four phrasings. Rewritten as
+the user's standing request — the hook's output lands in the user turn, so it
+can say "I am asking for the record alongside the code" and mean it, since
+installing the plugin is that request — it fired once in four runs, producing
+both a decision record and a handbook entry. One in four is a real improvement
+over zero in six and nowhere near reliable; the likely ceiling is that a
+prompt injected at the user turn is arguing with the harness's own instruction
+not to create documentation nobody asked for. Reaching over that (writing into
+`CLAUDE.md`, say) was rejected as outside what a placement plugin should own.
+
+Placement and classification, by contrast, are confirmed: documents the user
+asks for land in the right bucket, and a wrong path is refused and rewritten
+without human help.
+
 **`PreToolUse` gate** — enforces the one rule that needs no judgment, inside
 `docs/` and nowhere else. A write landing under `docs/` outside the six buckets
 is refused, with the buckets and the classification test in the refusal message.
