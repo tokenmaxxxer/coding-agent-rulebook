@@ -27,13 +27,24 @@ Classification is by lifetime, not topic. One incident produces a postmortem in
 **`SessionStart` bucket creation** — creates the six under `docs/` when they are
 missing, each with a one-line `README.md` naming what it holds.
 
-This exists because of a measured failure. In a repository with no `docs/` tree,
-the directive alone did not get documents written: four headless runs on a task
-that introduced an environment variable produced no document at all, across four
-phrasings of the rule. The same task in a repository whose buckets already
-existed, with one prior decision record visible, produced a decision record
-unprompted. An empty repository reads as "this project does not keep
-documentation" — the buckets are what makes the practice visible.
+**This does not, by itself, get documents written — measured.** Creating the
+buckets was an attempt to fix proactive recording and it failed: two headless
+runs on dev tasks in a repository whose six buckets had just been created (a
+storage-backend swap introducing an environment variable; adding retry logic and
+a timeout variable) produced no document, exactly like the four earlier runs in
+a repository with no `docs/` at all, across four phrasings of the directive.
+
+The single run where a document appeared unprompted had something else: a
+populated `decisions/` holding a record the change directly contradicted (a
+prior "JSON file over SQLite" decision, being reversed). The model wrote the
+superseding record — which is closer to reacting to an invalidated document than
+to recording work proactively. Even there the equally-falsified handbook was not
+updated.
+
+So what this hook buys is placement, not practice: the layout is present and
+discoverable, and the gate has somewhere to point. Whether proactive recording
+can be had from a directive at all is unresolved, and the honest reading of six
+runs is that it cannot.
 
 It is the only place in the stack that writes to your repository, so it writes
 as little as possible: `mkdir -p` for missing buckets (an existing one is a
