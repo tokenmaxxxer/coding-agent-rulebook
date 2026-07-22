@@ -59,22 +59,38 @@ written; a change that falsifies a document fixes it in the same turn; no
 document restates a fact another one owns. Surface-gated: inert on turns that
 touch no documentation, and silent about everything outside `docs/`.
 
-It also asks for a record when a turn settles a hard-to-reverse choice, produces
-measurements, or changes how the system is operated. **That part is weak, and
-the number is here rather than hidden.** Written as a third-person rule it never
-fired: zero documents in six headless runs across four phrasings. Rewritten as
-the user's standing request — the hook's output lands in the user turn, so it
-can say "I am asking for the record alongside the code" and mean it, since
-installing the plugin is that request — it fired once in four runs, producing
-both a decision record and a handbook entry. One in four is a real improvement
-over zero in six and nowhere near reliable; the likely ceiling is that a
-prompt injected at the user turn is arguing with the harness's own instruction
-not to create documentation nobody asked for. Reaching over that (writing into
-`CLAUDE.md`, say) was rejected as outside what a placement plugin should own.
+It also asks for the record when a turn produces one, and getting that to fire
+took three rewrites that the measurements decided between:
 
-Placement and classification, by contrast, are confirmed: documents the user
-asks for land in the right bucket, and a wrong path is refused and rewritten
-without human help.
+| Form of the clause | Documents written |
+|---|---|
+| Third-person rule — "these turns owe a document" | 0 of 6 |
+| The user's standing request — "alongside the code, I am asking for the record" | 1 of 4 |
+| Standing request + condition→destination table | 3 of 3, silent on the control |
+
+The final form drops the judgment call. Instead of asking the model to decide
+whether a turn owes documentation, it lists conditions recognizable on the
+surface of the work, each with the file to write:
+
+- introduced or renamed an env var, config key, dependency, migration, or
+  setup/deploy step → `docs/handbooks/<component>.md`
+- picked a library, format, schema, protocol, or storage backend over a named
+  alternative → `docs/decisions/YYYY-MM-DD-<slug>.md`
+- changed a public signature, output format, or on-disk/wire format → the same
+- ran tests, a benchmark, a profile, or an investigation that produced numbers
+  → `docs/reports/YYYY-MM-DD-<slug>.md`
+- found a document under `docs/` that is now false → fix it this turn
+
+Same four tasks across forms. Under the table form, a storage-backend swap
+produced both a decision record and a handbook entry, an added `FETCH_TIMEOUT`
+produced the handbook entry, a CSV→JSON-Lines change produced the decision
+record, and a routine Unicode bugfix correctly produced nothing.
+
+Two things made the difference, in order: the clause is the user's request
+rather than a policy competing with it — the hook's output lands in the user
+turn, and installing the plugin *is* that request — and matching a condition is
+cheaper than judging whether documentation is warranted. Small n; the control
+task is the guard against the obvious failure of writing a document every turn.
 
 **`PreToolUse` gate** — enforces the one rule that needs no judgment, inside
 `docs/` and nowhere else. A write landing under `docs/` outside the six buckets

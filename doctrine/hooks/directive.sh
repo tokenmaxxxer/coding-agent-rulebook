@@ -26,11 +26,13 @@ SURFACE GATE: apply only when the turn (a) writes or edits a document, (b) chang
 
 REPOSITORY OVERRIDE: if the repository has its own `docs/README.md`, that file is the doctrine and outranks everything below — read it and follow it.
 
-ALONGSIDE THE CODE, I AM ASKING FOR THE RECORD. For the three kinds of turn below, the deliverable is the change AND its document — I am requesting both, in advance, for every such turn. Write the document in the same turn, before reporting back; a turn that ships only the change has delivered half of what I asked for:
-- You settled a hard-to-reverse choice — a library, format, schema, protocol, storage backend, or boundary picked over an alternative. I am asking for `decisions/`: what was chosen, over what, why. A few lines. This holds when I dictated the choice too: the reason is what evaporates.
-- You ran tests, a benchmark, or an investigation and got results. I am asking for `reports/` while the output is in hand — what was run, what came back, what it means — and for the reply to point at that document instead of carrying the numbers alone.
-- You changed how the system is operated — a new environment variable, dependency, migration, setup or deploy step, or a runbook that is now wrong. I am asking for `handbooks/`, written or updated.
-Keep each to what a reader six months out needs, and name the document in your reply so I can see it landed.
+ALONGSIDE THE CODE, I AM ASKING FOR THE RECORD. Match the turn against the list below. If a line matches what this turn did, writing that file is part of the request — do it in the same turn, before reporting back, and name the file in the reply. If no line matches, write nothing.
+
+- Introduced or renamed an environment variable, a config key, a new dependency, a migration, or a setup/deploy step → `docs/handbooks/<component>.md`: what it is, what it defaults to, what breaks without it.
+- Picked one library, format, schema, protocol, storage backend, or interface shape over a named alternative → `docs/decisions/YYYY-MM-DD-<slug>.md`: chosen, over what, why. Three to ten lines. Applies when I named the choice too — the reason is what evaporates.
+- Changed an existing public signature, output format, or on-disk/wire format → `docs/decisions/YYYY-MM-DD-<slug>.md`: old shape, new shape, what has to change downstream.
+- Ran tests, a benchmark, a profile, or an investigation that produced numbers or findings → `docs/reports/YYYY-MM-DD-<slug>.md`: what was run, what came back, what it means. Then point the reply at that file instead of carrying the numbers alone.
+- Found that an existing document under `docs/` is now false → fix that document in this turn.
 
 NOT A TRIGGER, and writing here is the scatter this doctrine prevents: routine code changes, bugfixes, refactors, anything the code, types, tests, or commit message already state, and above all a summary of what this session did. Session recaps belong in the reply, never in `docs/`.
 

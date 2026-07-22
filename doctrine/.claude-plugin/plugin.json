@@ -1,6 +1,6 @@
 {
   "name": "doctrine",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "Documentation placement doctrine: every repository document lives in one of six lifetime-based buckets under docs/. A SessionStart hook creates the buckets when missing, a UserPromptSubmit directive steers classification, and a PreToolUse gate refuses writes landing under docs/ outside them. Placement is enforced; proactive recording is directed but measured not to fire. Scope is docs/ only — no content audits, no post-hoc doc review.",
   "author": {
     "name": "Jung Jiwon & Lee Jongkwan"
