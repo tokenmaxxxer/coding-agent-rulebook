@@ -9,7 +9,7 @@
 # Applies on every machine-local session but does NOT travel with any repo.
 set -u
 
-MARKET="tokenmaxxxer"
+MARKET="tokenmaxxxer-coding"
 BUNDLE="coding-agent-env"
 GITHUB_REPO="tokenmaxxxer/coding-agent-rulebook"
 
@@ -165,9 +165,9 @@ fi
 cat <<'MSG'
 ==> done (user scope). Start (or reload) a Claude Code session, then:
     - verify with /plugins
-    - RECOMMENDED: open /plugin -> marketplaces -> tokenmaxxxer and enable
+    - RECOMMENDED: open /plugin -> marketplaces -> tokenmaxxxer-coding and enable
       auto-update, so future stack additions arrive automatically. There is
       no CLI/config switch for this toggle; it is a one-time interactive step.
     - without auto-update, refresh manually anytime:
-      claude plugin update coding-agent-env@tokenmaxxxer
+      claude plugin update coding-agent-env@tokenmaxxxer-coding
 MSG
