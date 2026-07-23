@@ -21,7 +21,7 @@ no-footgun takes the incumbent's one transferable pattern — a cascading custom
 ## Install
 
 ```
-/plugin install no-footgun@tokenmaxxxer
+/plugin install no-footgun@tokenmaxxxer-coding
 ```
 
 ## Temporarily disable

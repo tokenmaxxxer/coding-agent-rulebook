@@ -39,9 +39,9 @@ The position paper ([*Generation Is All You Need*](docs/reports/generation-is-al
 curl -fsSL https://raw.githubusercontent.com/tokenmaxxxer/coding-agent-rulebook/main/install.sh | bash
 ```
 
-This registers the `tokenmaxxxer` marketplace and installs the whole stack — the `coding-agent-env` bundle plus every plugin it depends on — at **user scope**. It applies to your account on every machine-local session; it does not travel with a repo and does not reach Claude Code on the web or Slack cloud sessions. install.sh writes nothing to the repo it's run from: no `.claude/settings.json` at a repo root, and no SessionStart hook.
+This registers the `tokenmaxxxer-coding` marketplace and installs the whole stack — the `coding-agent-env` bundle plus every plugin it depends on — at **user scope**. It applies to your account on every machine-local session; it does not travel with a repo and does not reach Claude Code on the web or Slack cloud sessions. install.sh writes nothing to the repo it's run from: no `.claude/settings.json` at a repo root, and no SessionStart hook.
 
-The script prefers a real `claude` CLI (standalone, or the binary bundled inside the VSCode extension) if it finds one, and runs `plugin install <name>@tokenmaxxxer --scope user` for each plugin plus the bundle, then updates each to the marketplace's latest. If no `claude` binary is found — or `TOKENMAXXXER_SETTINGS_ONLY=1` is set to force it — the script falls back to writing `~/.claude/settings.json` directly: it merges in the marketplace declaration and enables the bundle, preserving any existing keys and writing a `.bak` before touching an existing file. Either path installs the same bundle the same way.
+The script prefers a real `claude` CLI (standalone, or the binary bundled inside the VSCode extension) if it finds one, and runs `plugin install <name>@tokenmaxxxer-coding --scope user` for each plugin plus the bundle, then updates each to the marketplace's latest. If no `claude` binary is found — or `TOKENMAXXXER_SETTINGS_ONLY=1` is set to force it — the script falls back to writing `~/.claude/settings.json` directly: it merges in the marketplace declaration and enables the bundle, preserving any existing keys and writing a `.bak` before touching an existing file. Either path installs the same bundle the same way.
 
 `install.sh --help` prints usage. The only other input it reads is the `TOKENMAXXXER_SETTINGS_ONLY=1` environment variable described above.
 
@@ -49,10 +49,10 @@ Or, from any Claude Code session, the equivalent by hand:
 
 ```
 /plugin marketplace add tokenmaxxxer/coding-agent-rulebook
-/plugin install coding-agent-env@tokenmaxxxer
+/plugin install coding-agent-env@tokenmaxxxer-coding
 ```
 
-One interactive step remains after either path: open `/plugin` → marketplaces → tokenmaxxxer and enable **auto-update**, so future stack additions arrive automatically (there is no CLI switch for this toggle). Verify with `/plugins`. Individual plugins install the same way: `/plugin install terse@tokenmaxxxer`. If an update ever complains about a missing dependency, re-run install.sh — it is idempotent and installs the full stack explicitly.
+One interactive step remains after either path: open `/plugin` → marketplaces → tokenmaxxxer-coding and enable **auto-update**, so future stack additions arrive automatically (there is no CLI switch for this toggle). Verify with `/plugins`. Individual plugins install the same way: `/plugin install terse@tokenmaxxxer-coding`. If an update ever complains about a missing dependency, re-run install.sh — it is idempotent and installs the full stack explicitly.
 
 ## Plugins
 
@@ -76,19 +76,19 @@ If you'd rather not run the installer, the minimum to declare by hand is the mar
 ```json
 {
   "extraKnownMarketplaces": {
-    "tokenmaxxxer": {
+    "tokenmaxxxer-coding": {
       "source": { "source": "github", "repo": "tokenmaxxxer/coding-agent-rulebook" }
     }
   },
   "enabledPlugins": {
-    "coding-agent-env@tokenmaxxxer": true
+    "coding-agent-env@tokenmaxxxer-coding": true
   }
 }
 ```
 
 install.sh's CLI path goes further: it enables all ten plugins explicitly (the nine dependencies plus the bundle) in `enabledPlugins`. The extra entries are just explicit — the single bundle entry above is enough on its own.
 
-Prefer a subset? Enable individual plugins instead (`"terse@tokenmaxxxer": true`, …).
+Prefer a subset? Enable individual plugins instead (`"terse@tokenmaxxxer-coding": true`, …).
 
 ## Repo layout
 
