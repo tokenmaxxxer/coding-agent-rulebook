@@ -1,7 +1,4 @@
 {
-  "env": {
-    "DOCTRINE_ALLOW": "experiments"
-  },
   "extraKnownMarketplaces": {
     "tokenmaxxxer": {
       "source": {
