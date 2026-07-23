@@ -71,7 +71,7 @@ One interactive step remains after either path: open `/plugin` → marketplaces 
 
 ## Writing the settings by hand
 
-Whether the CLI installs each plugin or install.sh falls back to editing `~/.claude/settings.json` directly, the declaration it converges on is exactly these two keys:
+If you'd rather not run the installer, the minimum to declare by hand is the marketplace plus the `tokenmaxxxer-env` bundle — its dependencies resolve on the next CLI install. This is also exactly what install.sh's CLI-less fallback writes:
 
 ```json
 {
@@ -85,6 +85,8 @@ Whether the CLI installs each plugin or install.sh falls back to editing `~/.cla
   }
 }
 ```
+
+install.sh's CLI path goes further: it enables all ten plugins explicitly (the nine dependencies plus the bundle) in `enabledPlugins`. The extra entries are just explicit — the single bundle entry above is enough on its own.
 
 Prefer a subset? Enable individual plugins instead (`"terse@tokenmaxxxer": true`, …).
 

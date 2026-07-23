@@ -103,6 +103,13 @@ CLI=""
 
 if [ -n "$CLI" ] && [ -x "$CLI" ]; then
   echo "==> installing via CLI: $CLI"
+  # Run the CLI from a scratch dir, never the invoking repo. `claude plugin
+  # marketplace add` keys its write scope on the current directory, so run inside
+  # a repo that declares the marketplace it would pin entries into that repo's
+  # tracked .claude/settings.json. A neutral cwd keeps every write at user scope.
+  # (The write_settings fallback below uses an absolute $HOME path and is
+  # unaffected by cwd.)
+  cd "$(mktemp -d 2>/dev/null || echo "${TMPDIR:-/tmp}")" 2>/dev/null || cd / || true
   if "$CLI" plugin marketplace list 2>/dev/null | grep -q "$MARKET"; then
     echo "    marketplace '$MARKET' already registered"
   else
@@ -138,7 +145,13 @@ if [ -n "$CLI" ] && [ -x "$CLI" ]; then
   fi
 else
   echo "==> no claude CLI found (standalone or bundled): writing user settings directly"
-  write_settings "$HOME/.claude/settings.json"
+  # Fail loudly rather than falling through to the "done" banner: write_settings
+  # exits non-zero when ~/.claude/settings.json exists but is not valid JSON, and
+  # nothing was written in that case.
+  if ! write_settings "$HOME/.claude/settings.json"; then
+    echo "==> FAILED to write ~/.claude/settings.json (see the error above); nothing was installed." >&2
+    exit 1
+  fi
   echo "    the bundle and its dependencies install on next session start"
 fi
 
