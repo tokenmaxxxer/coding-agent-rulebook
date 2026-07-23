@@ -100,4 +100,4 @@ Prefer a subset? Enable individual plugins instead (`"terse@tokenmaxxxer": true`
 - `install.sh` — the one-shot installer described above.
 - `.claude-plugin/marketplace.json` — the marketplace manifest.
 - `freelunch/`, `terse/`, `blueprint/`, `no-mock/`, `scout/`, `no-footgun/`, `doctrine/`, `warrant/`, `dispatch/`, `tokenmaxxxer-env/` — one directory per plugin, each with its own README and benchmark notes.
-- `docs/` — follows the doctrine this repo ships: documents live in lifetime buckets (`reports/` here), attachments in `_assets/`. `experiments/` is a benchmark harness whose markdown is fixture and protocol input, not documentation, so `.claude/settings.json` exempts it via `DOCTRINE_ALLOW`.
+- `docs/` — follows the doctrine this repo ships: documents live in lifetime buckets (`reports/` here), attachments in `_assets/`.
