@@ -40,6 +40,11 @@ import sys
 # is none of the three known states is reported rather than read as "not approved".
 STATUS = re.compile(r"^status:\s*([A-Za-z]+)\s*(?:#.*)?$", re.M)
 KNOWN_STATES = ("proposed", "approved", "landed")
+# Same comment-tolerant shape as STATUS, parsing a record's declared `kind:`
+# instead of a proposal's `status:` — `kind: build-proposal  # re-scoped`
+# parses as `build-proposal`, per contract v2 section 2's rule that kind
+# parsing must tolerate a trailing comment.
+KIND = re.compile(r"^kind:\s*(\S+)\s*(?:#.*)?$", re.M)
 # `git commit`, `git  commit`, `git -C path commit` are one command.
 GIT_COMMIT = re.compile(r"\bgit\b(?:\s+-[A-Za-z]\S*(?:\s+\S+)?|\s+--\S+)*\s+commit\b")
 FILE_ITEM = re.compile(r"^\s*-\s*(.+?)\s*$")
@@ -270,6 +275,29 @@ relative = resolved[len(real_root) + 1:]
 # protocol's own bookkeeping, not the work.
 if relative == proposal_path:
     allow()
+
+# A coding-authored write landing under docs/proposals/ with a declared
+# `kind` other than `build-proposal` is a mechanically detectable
+# NEVER-OVERWRITE violation: contract v2 section 11 keeps docs/proposals/
+# shared between product and coding, disambiguated by filename tag, and
+# coding's own write set only ever freezes a `docs/proposals/<date>-build-
+# <slug>.md` path. This only confirms the self-declared value; it does not
+# validate content against it (contract v2 section 14).
+if relative.startswith("docs/proposals/") and relative != proposal_path:
+    content = tool_input.get("content")
+    if not isinstance(content, str):
+        content = tool_input.get("new_string")
+    if isinstance(content, str):
+        found_kind = KIND.search(content)
+        if found_kind and found_kind.group(1) != "build-proposal":
+            print(
+                "warrant: refused — `%s` declares `kind: %s`, not `build-proposal`.\n"
+                "coding's writes under docs/proposals/ must declare kind: build-proposal; "
+                "a different declared kind is a strong signal of writing into another "
+                "role's docs/proposals/ lane." % (relative, found_kind.group(1)),
+                file=sys.stderr,
+            )
+            sys.exit(2)
 
 # So is the record the work produces. doctrine asks for a decision record, a
 # report, or a handbook update at the moment the work creates one; a write set
