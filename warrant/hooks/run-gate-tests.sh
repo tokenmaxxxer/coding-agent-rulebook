@@ -63,8 +63,16 @@ expect_allow() {
 }
 
 new_root() {
+  # The gate now validates its resolved root (contract: docs/proposals/
+  # 2026-07-26-gate-root-from-project-dir.md) — a root must either be a git
+  # work-tree top-level or carry docs/specs/role-handoff-contract.md before
+  # it is trusted at all. Every fixture root gets the contract file stamped
+  # in so existing cases (which pass CLAUDE_PROJECT_DIR pointing straight at
+  # this dir, never a git repo) continue to validate exactly as before.
   local d
   d="$(mktemp -d -p "$WORKDIR")"
+  mkdir -p "$d/docs/specs"
+  printf 'role-handoff contract fixture stub\n' > "$d/docs/specs/role-handoff-contract.md"
   echo "$d"
 }
 
@@ -208,6 +216,89 @@ expect_allow "(14) path-ref-allow foreign plain read" "$root" "$payload"
 own_bash_record="$root/docs/reports/records/own-subject-bash/coding.md"
 payload="$(bash_payload "printf -- 'x' > ${own_bash_record}")"
 expect_allow "(15) path-ref-allow own record plain redirect" "$root" "$payload"
+
+# =========================================================================
+# Cases 16-19: gate-protection root resolution from CLAUDE_PROJECT_DIR
+# (contract: docs/proposals/2026-07-26-gate-root-from-project-dir.md).
+# =========================================================================
+
+# Case 16: CLAUDE_PROJECT_DIR points at an unrelated/empty directory (no
+# docs/specs/role-handoff-contract.md, not itself a git work-tree
+# top-level), while the write targets a REAL project's approved write set.
+# -> expect DENY (the root is INDETERMINATE; default-deny, not a silent
+# stand-down that lets the write through).
+root="$(new_root)"
+mkdir -p "$root/src"
+proposal="$(write_approved_proposal "$root" "case16" '  - src')"
+unrelated="$(mktemp -d -p "$WORKDIR")"    # deliberately NOT stamped via new_root
+target="$root/src/in-scope.py"
+payload=$(cat <<JSON
+{"tool_name":"Write","tool_input":{"file_path":"$target","content":"x = 1\n"}}
+JSON
+)
+out="$(CLAUDE_PROJECT_DIR="$unrelated" WARRANT_OFF= bash "$GATE" <<<"$payload" 2>&1)"
+rc=$?
+if [ "$rc" -eq 0 ]; then
+  echo "FAIL: (16) CLAUDE_PROJECT_DIR unrelated/empty dir, real target -- expected deny, got exit 0. Output: $out"
+  fail=$((fail+1))
+else
+  echo "PASS: (16) CLAUDE_PROJECT_DIR unrelated/empty dir, real target refused (exit $rc)"
+  pass=$((pass+1))
+fi
+
+# Case 17: CLAUDE_PROJECT_DIR correctly points at the real project root ->
+# normal enforcement still applies (in-scope write allowed).
+root="$(new_root)"
+mkdir -p "$root/src"
+proposal="$(write_approved_proposal "$root" "case17" '  - src')"
+payload=$(cat <<JSON
+{"tool_name":"Write","tool_input":{"file_path":"$root/src/in-scope.py","content":"x = 1\n"}}
+JSON
+)
+expect_allow "(17) CLAUDE_PROJECT_DIR correct root enforces normally (allowed)" "$root" "$payload"
+
+# Case 18: CLAUDE_PROJECT_DIR correctly points at the real project root ->
+# an out-of-scope write is still refused.
+root="$(new_root)"
+mkdir -p "$root/src" "$root/other"
+proposal="$(write_approved_proposal "$root" "case18" '  - src')"
+payload=$(cat <<JSON
+{"tool_name":"Write","tool_input":{"file_path":"$root/other/escape.py","content":"x = 1\n"}}
+JSON
+)
+expect_deny "(18) CLAUDE_PROJECT_DIR correct root enforces normally (refused)" "$root" "$payload"
+
+# Case 19: CLAUDE_PROJECT_DIR unset -> falls back to the git top-level of
+# cwd. A real git repo fixture proves the fallback resolves and enforces
+# exactly as the explicit CLAUDE_PROJECT_DIR path does.
+git_root="$(mktemp -d -p "$WORKDIR")"
+(cd "$git_root" && git init -q && git config user.email t@example.com && git config user.name t)
+mkdir -p "$git_root/src" "$git_root/other"
+(
+  cd "$git_root"
+  mkdir -p docs/proposals
+  {
+    printf -- '---\n'
+    printf 'status: approved\n'
+    printf 'files:\n'
+    printf '  - src\n'
+    printf -- '---\n'
+    printf '# build proposal\n'
+  } > docs/proposals/case19.md
+)
+payload=$(cat <<JSON
+{"tool_name":"Write","tool_input":{"file_path":"$git_root/other/escape.py","content":"x = 1\n"}}
+JSON
+)
+out="$(cd "$git_root" && CLAUDE_PROJECT_DIR= WARRANT_OFF= bash "$GATE" <<<"$payload" 2>&1)"
+rc=$?
+if [ "$rc" -eq 0 ]; then
+  echo "FAIL: (19) CLAUDE_PROJECT_DIR unset, git-toplevel fallback -- expected deny, got exit 0. Output: $out"
+  fail=$((fail+1))
+else
+  echo "PASS: (19) CLAUDE_PROJECT_DIR unset, git-toplevel fallback enforces (exit $rc)"
+  pass=$((pass+1))
+fi
 
 echo ""
 echo "=== tally: ${pass} passed, ${fail} failed (of $((pass+fail)) cases) ==="

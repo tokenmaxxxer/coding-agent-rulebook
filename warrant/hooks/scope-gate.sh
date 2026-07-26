@@ -66,21 +66,57 @@ tool_input = event.get("tool_input")
 if not isinstance(tool_input, dict):
     allow()
 
-root = (os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()).replace("\\", "/")
-root = posixpath.normpath(root)
-# Without CLAUDE_PROJECT_DIR the cwd could be anywhere; anchor on the git root so
-# the gate never treats a scratch directory as the project it is guarding.
-try:
-    import subprocess
-    top = subprocess.run(["git", "-C", root, "rev-parse", "--show-toplevel"],
-                         capture_output=True, text=True, timeout=5).stdout.strip()
-    if top:
-        root = posixpath.normpath(top.replace("\\", "/"))
-    elif not os.environ.get("CLAUDE_PROJECT_DIR"):
+# --- gate-protection root resolution (contract: docs/proposals/2026-07-26-gate-root-from-project-dir.md) ---
+# root candidate: CLAUDE_PROJECT_DIR when set; otherwise the git top-level of
+# cwd. Without CLAUDE_PROJECT_DIR the cwd could be anywhere, so the
+# git-toplevel fallback anchors the gate on a real project root rather than a
+# scratch directory.
+import subprocess
+
+_env_project_dir = os.environ.get("CLAUDE_PROJECT_DIR")
+if _env_project_dir:
+    root = posixpath.normpath(_env_project_dir.replace("\\", "/"))
+else:
+    root = posixpath.normpath((os.getcwd()).replace("\\", "/"))
+    try:
+        top = subprocess.run(["git", "-C", root, "rev-parse", "--show-toplevel"],
+                             capture_output=True, text=True, timeout=5).stdout.strip()
+        if top:
+            root = posixpath.normpath(top.replace("\\", "/"))
+        else:
+            allow()
+    except (OSError, subprocess.SubprocessError):
         allow()
-except (OSError, subprocess.SubprocessError):
-    if not os.environ.get("CLAUDE_PROJECT_DIR"):
-        allow()
+
+# root VALIDITY (contract): the resolved root must be a plausible project
+# root — either a git work-tree top-level, or a directory that itself
+# carries docs/specs/role-handoff-contract.md. A CLAUDE_PROJECT_DIR pointing
+# at an unrelated or empty directory (neither) is INDETERMINATE and refused
+# outright rather than silently treated as "nothing to enforce here" — the
+# default-deny this contract requires, since a stand-down (allow()) would
+# quietly let a write into the real project's owned tree through unchecked.
+def _is_git_toplevel(path):
+    try:
+        result = subprocess.run(["git", "-C", path, "rev-parse", "--show-toplevel"],
+                                 capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    top = result.stdout.strip()
+    if not top:
+        return False
+    return posixpath.normpath(os.path.realpath(top).replace("\\", "/")) == \
+        posixpath.normpath(os.path.realpath(path).replace("\\", "/"))
+
+
+_root_has_contract = os.path.isfile(posixpath.join(root, "docs", "specs", "role-handoff-contract.md"))
+if not (_root_has_contract or (os.path.isdir(root) and _is_git_toplevel(root))):
+    print(
+        "warrant: refused — the resolved project root (%s) is not a recognizable project root "
+        "(no docs/specs/role-handoff-contract.md there, and it is not a git work-tree top-level "
+        "itself). Refusing rather than trusting an unvalidated root." % root,
+        file=sys.stderr)
+    sys.exit(2)
+
 proposals_dir = posixpath.join(root, "docs", "proposals")
 
 
