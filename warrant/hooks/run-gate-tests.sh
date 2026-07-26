@@ -367,6 +367,115 @@ expect_deny "(23b) .write_bytes( to out-of-scope path now refused" "$root" "$pay
 payload="$(bash_payload "python3 -c \"import os; os.write(open('${target}','w').fileno(), b'x')\"")"
 expect_deny "(23c) os.write( to out-of-scope path now refused" "$root" "$payload"
 
+# =========================================================================
+# Cases 24-29: persistent fail-closed coverage for scope-gate.sh and
+# hunt-guard.sh (docs/proposals/2026-07-26-fix-fail-open-persistent-tests.md).
+# The fail-open -> fail-closed fix
+# (docs/proposals/2026-07-26-fix-fail-open-hooks.md) claimed a passing test
+# per script as its success criterion; no persistent case exercised
+# hunt-guard.sh at all, and scope-gate.sh had no persistent malformed-input
+# or missing-python3 case. Each script gets: REFUSE on malformed
+# (unparseable) input, REFUSE when python3 is simulated as missing from
+# PATH, and PASS on a compliant/well-formed input.
+# =========================================================================
+
+HUNT_GATE="$HOOK_DIR/hunt-guard.sh"
+
+# A minimal PATH stub carrying only the coreutils these two gates' intake
+# paths need before they reach `command -v python3` — cat (payload read)
+# and dirname (BASH_SOURCE dirname resolution) — with python3 itself
+# deliberately absent, to simulate "python3 is not on PATH" without
+# actually altering the real PATH for anything else in this process.
+NO_PYTHON3_STUB="$WORKDIR/no-python3-stub"
+mkdir -p "$NO_PYTHON3_STUB"
+for _c in cat dirname bash; do
+  _src="$(command -v "$_c" 2>/dev/null)"
+  [ -n "$_src" ] && ln -sf "$_src" "$NO_PYTHON3_STUB/$_c"
+done
+
+run_gate_no_python3() {
+  # $1 = gate script, $2 = root dir, $3 = payload json
+  CLAUDE_PROJECT_DIR="$2" WARRANT_OFF= PATH="$NO_PYTHON3_STUB" "$NO_PYTHON3_STUB/bash" "$1" <<<"$3"
+}
+
+expect_deny_no_python3() {
+  local name="$1" gate="$2" root="$3" payload="$4"
+  local out rc
+  out="$(run_gate_no_python3 "$gate" "$root" "$payload" 2>&1)"
+  rc=$?
+  if [ "$rc" -eq 0 ]; then
+    echo "FAIL: $name -- expected deny (non-zero exit) on missing python3, got exit 0. Output: $out"
+    fail=$((fail+1))
+  elif ! printf '%s' "$out" | grep -q "python3"; then
+    echo "FAIL: $name -- denied (exit $rc) but did not mention python3 in its refusal. Output: $out"
+    fail=$((fail+1))
+  else
+    echo "PASS: $name (exit $rc)"
+    pass=$((pass+1))
+  fi
+}
+
+# --- (24) scope-gate.sh: malformed (unparseable) input -> REFUSE ---------
+root="$(new_root)"
+mkdir -p "$root/src"
+proposal="$(write_approved_proposal "$root" "case24" '  - src')"
+out="$(run_gate "$root" 'not json at all {{{' 2>&1)"
+rc=$?
+if [ "$rc" -ne 0 ]; then
+  echo "PASS: (24) scope-gate malformed JSON input refused (exit $rc)"
+  pass=$((pass+1))
+else
+  echo "FAIL: (24) scope-gate malformed JSON input was ALLOWED (exit 0): $out"
+  fail=$((fail+1))
+fi
+
+# --- (25) scope-gate.sh: simulated missing python3 -> REFUSE -------------
+root="$(new_root)"
+mkdir -p "$root/src"
+proposal="$(write_approved_proposal "$root" "case25" '  - src')"
+payload=$(cat <<JSON
+{"tool_name":"Write","tool_input":{"file_path":"$root/src/in-scope.py","content":"x = 1\n"}}
+JSON
+)
+expect_deny_no_python3 "(25) scope-gate simulated missing python3 refused" "$GATE" "$root" "$payload"
+
+# --- (26) scope-gate.sh: compliant (well-formed, in-scope) input -> PASS -
+root="$(new_root)"
+mkdir -p "$root/src"
+proposal="$(write_approved_proposal "$root" "case26" '  - src')"
+payload=$(cat <<JSON
+{"tool_name":"Write","tool_input":{"file_path":"$root/src/in-scope.py","content":"x = 1\n"}}
+JSON
+)
+expect_allow "(26) scope-gate compliant well-formed input allowed" "$root" "$payload"
+
+# --- (27) hunt-guard.sh: malformed (unparseable) input -> REFUSE ---------
+out="$(WARRANT_OFF= bash "$HUNT_GATE" <<<'not json at all {{{' 2>&1)"
+rc=$?
+if [ "$rc" -ne 0 ]; then
+  echo "PASS: (27) hunt-guard malformed JSON input refused (exit $rc)"
+  pass=$((pass+1))
+else
+  echo "FAIL: (27) hunt-guard malformed JSON input was ALLOWED (exit 0): $out"
+  fail=$((fail+1))
+fi
+
+# --- (28) hunt-guard.sh: simulated missing python3 -> REFUSE -------------
+payload='{"tool_name":"Task","tool_input":{"subagent_type":"warrant-hunter","prompt":"probe"}}'
+expect_deny_no_python3 "(28) hunt-guard simulated missing python3 refused" "$HUNT_GATE" "$WORKDIR" "$payload"
+
+# --- (29) hunt-guard.sh: compliant (non-dispatch tool) input -> PASS -----
+payload='{"tool_name":"Bash","tool_input":{"command":"echo hi"}}'
+out="$(CLAUDE_PROJECT_DIR="$WORKDIR" WARRANT_OFF= bash "$HUNT_GATE" <<<"$payload" 2>&1)"
+rc=$?
+if [ "$rc" -eq 0 ]; then
+  echo "PASS: (29) hunt-guard compliant non-dispatch tool call allowed"
+  pass=$((pass+1))
+else
+  echo "FAIL: (29) hunt-guard compliant non-dispatch tool call was DENIED (exit $rc): $out"
+  fail=$((fail+1))
+fi
+
 echo ""
 echo "=== tally: ${pass} passed, ${fail} failed (of $((pass+fail)) cases) ==="
 if [ "$fail" -ne 0 ]; then
