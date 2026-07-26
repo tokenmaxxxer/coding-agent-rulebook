@@ -30,6 +30,7 @@ command -v python3 >/dev/null 2>&1 || exit 0
 payload="$(cat)"
 
 WARRANT_PAYLOAD="$payload" python3 <<'PY'
+import fnmatch
 import json
 import os
 import posixpath
@@ -273,17 +274,48 @@ def withheld(command):
 # whose exact target cannot be pinned down (a variable, an expression) is
 # default-denied rather than trusted, exactly like an unreadable file_path on
 # a Write/Edit call.
-WRITE_HINTS = re.compile(
+# Single source of truth for "does this command write at all" — shared
+# verbatim by the write-set enforcement below and the records-tree
+# path-reference default-deny further down (RECORDS_WRITE_IDIOM_RE is an
+# alias of this same object, not a second, narrower idiom list). Per the
+# frozen contract, this is deliberately over-inclusive: enumerate every
+# write-capable idiom this gate knows of; anything it can't prove is NOT
+# one of these falls to "target unknown -> default-deny" downstream, never
+# to a silent allow. `.write_text(` / `.write_bytes(` / `os.write(` are the
+# idioms that were missing from the old WRITE_HINTS (round-1 defect B).
+WRITE_IDIOM_RE = re.compile(
     r"\bopen\s*\([^)]*,\s*['\"]?[wax]"      # open(path, 'w'/'a'/'x'-mode)
     r"|\.write\s*\("
+    r"|\.write_text\s*\("
+    r"|\.write_bytes\s*\("
+    r"|\bos\.write\s*\("
     r"|(?<![0-9&])>{1,2}(?![&|])"           # shell redirection
     r"|\btee\b"
     r"|\b(sed|perl|ruby)\b[^|]*\s-i\b"      # in-place edit
     r"|\btruncate\b"
     r"|\bcp\b|\bmv\b|\binstall\b"
-    r"|\bdd\s+of="
+    r"|\bdd\b"                              # dd (of= or otherwise)
     r"|\brsync\b"
     r"|-[oO]\s+\S"                          # curl -o / wget -O
+)
+WRITE_HINTS = WRITE_IDIOM_RE
+# Same idiom set, minus the shell-redirection alternative: used only where
+# redirection is checked as its own separate, required condition (the
+# records-tree "plain self-redirection" carve-out below) so that presence
+# of `>` doesn't double-count as "another write idiom is also present."
+WRITE_IDIOM_NO_REDIRECT_RE = re.compile(
+    r"\bopen\s*\([^)]*,\s*['\"]?[wax]"
+    r"|\.write\s*\("
+    r"|\.write_text\s*\("
+    r"|\.write_bytes\s*\("
+    r"|\bos\.write\s*\("
+    r"|\btee\b"
+    r"|\b(sed|perl|ruby)\b[^|]*\s-i\b"
+    r"|\btruncate\b"
+    r"|\bcp\b|\bmv\b|\binstall\b"
+    r"|\bdd\b"
+    r"|\brsync\b"
+    r"|-[oO]\s+\S"
 )
 
 # Path-shaped tokens pulled out of a Bash command as candidate write
@@ -333,6 +365,37 @@ def resolve_relative(raw_path):
     return resolved[len(real_root) + 1:]
 
 
+def _write_set_entry_matches(relative, entry):
+    """Match one frozen write-set entry against a repo-root-relative path.
+
+    Per the frozen contract: a write-set entry is a glob, not a literal
+    path — `<root>/**` (i.e. an entry ending in `/**`) matches every path
+    under `<root>` at ANY depth. `fnmatch` is used for any entry carrying
+    other glob metacharacters (`*`, `?`, `[...]`); a plain entry with no
+    glob syntax keeps the original exact-match-or-directory-prefix
+    behavior. The `/**` and general-glob cases both compare against the
+    entry's own literal, normalized prefix (`entry.rstrip("/") + "/"` or
+    `fnmatch` against the literal pattern text) — never a re-expanded or
+    re-resolved root — so a sibling directory that merely SHARES a prefix
+    (`<root>-evil/`) can never satisfy it: `"foo-evil/x".startswith("foo/")`
+    is False, and `fnmatch.fnmatch("foo-evil/x", "foo/**")` is likewise
+    False because the pattern's literal `foo/` boundary does not appear.
+    """
+    entry = entry.rstrip("/")
+    if not entry:
+        return False
+    if entry.endswith("/**"):
+        base = entry[:-3]
+        return relative == base or relative.startswith(base + "/")
+    if any(ch in entry for ch in "*?["):
+        return fnmatch.fnmatch(relative, entry) or fnmatch.fnmatch(relative, entry + "/*")
+    return relative == entry or relative.startswith(entry + "/")
+
+
+def in_write_set(relative):
+    return any(_write_set_entry_matches(relative, entry) for entry in write_set)
+
+
 def in_scope(relative):
     """Same containment rule the Write/Edit path applies below: the proposal's
     own file, anything under docs/, or an entry in the frozen write set."""
@@ -340,10 +403,7 @@ def in_scope(relative):
         return True
     if relative.split("/")[0] == "docs" or "/docs/" in "/" + relative:
         return True
-    for entry in write_set:
-        if relative == entry or relative.startswith(entry.rstrip("/") + "/"):
-            return True
-    return False
+    return in_write_set(relative)
 
 
 RECORDS_ROOT_REL = "docs/reports/records"
@@ -379,16 +439,11 @@ def _records_tree_reference(command, repo_root):
 # nesting, no command substitution, no write idiom, read-only commands
 # only). This governs the record tree only; the pre-existing WRITE_HINTS /
 # frozen-write-set logic below is unchanged for every other path.
-RECORDS_WRITE_IDIOM_RE = re.compile(
-    r"open\s*\([^)]*,\s*['\"]?[wax]"
-    r"|\.write\s*\("
-    r"|\.write_text\s*\("
-    r"|\.write_bytes\s*\("
-    r"|os\.write\s*\("
-    r"|(?<![0-9&])>{1,2}(?![&|])"
-    r"|\btee\b"
-    r"|\bdd\b"
-)
+# Same regex object as the write-set enforcement's WRITE_IDIOM_RE above —
+# single source of truth for "is this a write" (frozen contract: unify
+# write-detection with the records-tree default-deny rather than
+# maintaining a second, narrower idiom list).
+RECORDS_WRITE_IDIOM_RE = WRITE_IDIOM_RE
 RECORDS_NESTED_SHELL_RE = re.compile(r"\b(?:sh|bash)\s+-c\b|\beval\b")
 RECORDS_READ_ONLY_CMDS = {
     "cat", "grep", "egrep", "fgrep", "head", "tail", "test", "ls", "[",
@@ -455,10 +510,7 @@ def records_tree_gate(command, repo_root):
         _records_command_substitution_free(command)
         and _records_no_nested_shell(command)
         and re.search(r"(?<![0-9&])>{1,2}(?![&|])", command) is not None
-        and re.search(
-            r"open\s*\([^)]*,\s*['\"]?[wax]|\.write\s*\(|\.write_text\s*\(|\.write_bytes\s*\(|os\.write\s*\(|\btee\b|\bdd\b",
-            command,
-        ) is None
+        and WRITE_IDIOM_NO_REDIRECT_RE.search(command) is None
     )
 
     if own_hit and plain_redirect_only:
@@ -606,9 +658,8 @@ if relative.startswith("docs/proposals/") and relative != proposal_path:
 if relative.split("/")[0] == "docs" or "/docs/" in "/" + relative:
     allow()
 
-for entry in write_set:
-    if relative == entry or relative.startswith(entry.rstrip("/") + "/"):
-        allow()
+if in_write_set(relative):
+    allow()
 
 print(
     "warrant: refused — `%s` is outside the write set frozen by %s.\n"

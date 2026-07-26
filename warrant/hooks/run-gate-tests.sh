@@ -300,6 +300,73 @@ else
   pass=$((pass+1))
 fi
 
+# =========================================================================
+# Cases 20-23: write-set glob enforcement fix (contract: docs/proposals/
+# 2026-07-26-gate-writeset-enforcement-fix.md, round-1 defects A and B).
+#
+# Defect A: the write-set match compared the literal string `<root>/**`
+# against a path with `startswith`, which never glob-expanded `**` -- every
+# real write under an approved `<root>/**` set was refused, forcing a
+# Bash-heredoc workaround. Fixed by glob/fnmatch matching in
+# _write_set_entry_matches().
+#
+# Defect B: WRITE_HINTS omitted `.write_text(` / `.write_bytes(` /
+# `os.write(`, so a write via one of those idioms to a path OUTSIDE the
+# write set was not recognized as a write at all and sailed through
+# unchecked. Fixed by unifying WRITE_HINTS with the records-tree write
+# idiom list (WRITE_IDIOM_RE, single source of truth).
+# =========================================================================
+
+# Case 20: Write/Edit call landing inside a `src/**` write set -> ALLOW.
+# (Prior behavior: `**` was compared literally and never matched, so this
+# was refused, forcing the heredoc workaround.)
+root="$(new_root)"
+mkdir -p "$root/src/nested/deep"
+proposal="$(write_approved_proposal "$root" "case20" '  - src/**')"
+payload=$(cat <<JSON
+{"tool_name":"Write","tool_input":{"file_path":"$root/src/nested/deep/in-scope.py","content":"x = 1\n"}}
+JSON
+)
+expect_allow "(20) glob write-set src/** allows a real non-docs write at depth" "$root" "$payload"
+
+# Case 21: same `src/**` write set via a Bash write (python3 open().write) ->
+# ALLOW, same glob fix applied on the Bash path (in_scope()/in_write_set()).
+root="$(new_root)"
+mkdir -p "$root/src/nested"
+proposal="$(write_approved_proposal "$root" "case21" '  - src/**')"
+target="$root/src/nested/in-scope.py"
+payload="$(bash_payload "python3 -c \"open('${target}', 'w').write('x')\"")"
+expect_allow "(21) glob write-set src/** allows a Bash write at depth" "$root" "$payload"
+
+# Case 22: a `src/**` write set must NOT over-match a sibling directory
+# that merely shares the `src` prefix (`src-evil/`) -> DENY.
+root="$(new_root)"
+mkdir -p "$root/src" "$root/src-evil"
+proposal="$(write_approved_proposal "$root" "case22" '  - src/**')"
+payload=$(cat <<JSON
+{"tool_name":"Write","tool_input":{"file_path":"$root/src-evil/escape.py","content":"x = 1\n"}}
+JSON
+)
+expect_deny "(22) glob write-set src/** does not over-match sibling src-evil/" "$root" "$payload"
+
+# Case 23: `.write_text(` / `.write_bytes(` / `os.write(` to a path OUTSIDE
+# the write set are now recognized as writes and refused (defect B) --
+# before the fix these idioms were absent from WRITE_HINTS and the Bash
+# call fell straight through to an unconditional allow.
+root="$(new_root)"
+mkdir -p "$root/src" "$root/other"
+proposal="$(write_approved_proposal "$root" "case23" '  - src')"
+
+target="$root/other/escape.py"
+payload="$(bash_payload "python3 -c \"import pathlib; pathlib.Path('${target}').write_text('x')\"")"
+expect_deny "(23a) .write_text( to out-of-scope path now refused" "$root" "$payload"
+
+payload="$(bash_payload "python3 -c \"import pathlib; pathlib.Path('${target}').write_bytes(b'x')\"")"
+expect_deny "(23b) .write_bytes( to out-of-scope path now refused" "$root" "$payload"
+
+payload="$(bash_payload "python3 -c \"import os; os.write(open('${target}','w').fileno(), b'x')\"")"
+expect_deny "(23c) os.write( to out-of-scope path now refused" "$root" "$payload"
+
 echo ""
 echo "=== tally: ${pass} passed, ${fail} failed (of $((pass+fail)) cases) ==="
 if [ "$fail" -ne 0 ]; then
