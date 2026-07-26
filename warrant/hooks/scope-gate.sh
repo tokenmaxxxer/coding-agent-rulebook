@@ -227,6 +227,89 @@ def withheld(command):
     return None
 
 
+# --- write-target resolution (contract: docs/proposals/2026-07-26-fix-state-gate-writeop-bypass.md) ---
+# Whether a write is in scope is decided by the TARGET PATH it lands on, never
+# by matching the command string against a whitelist of known write idioms.
+# The idiom list below (WRITE_HINTS) is used only to decide "does this command
+# write at all" — a much coarser, and deliberately over-inclusive, question
+# than the old code's "does this look like one of the write shapes we
+# recognize, and if not, let it through unchecked." A command that writes but
+# whose exact target cannot be pinned down (a variable, an expression) is
+# default-denied rather than trusted, exactly like an unreadable file_path on
+# a Write/Edit call.
+WRITE_HINTS = re.compile(
+    r"\bopen\s*\([^)]*,\s*['\"]?[wax]"      # open(path, 'w'/'a'/'x'-mode)
+    r"|\.write\s*\("
+    r"|(?<![0-9&])>{1,2}(?![&|])"           # shell redirection
+    r"|\btee\b"
+    r"|\b(sed|perl|ruby)\b[^|]*\s-i\b"      # in-place edit
+    r"|\btruncate\b"
+    r"|\bcp\b|\bmv\b|\binstall\b"
+    r"|\bdd\s+of="
+    r"|\brsync\b"
+    r"|-[oO]\s+\S"                          # curl -o / wget -O
+)
+
+# Path-shaped tokens pulled out of a Bash command as candidate write
+# targets. This does not parse shell semantics; it is a superset scan, and
+# every candidate is adjudicated the same way a Write/Edit's file_path
+# would be. Quoted substrings are extracted first and preferred exclusively
+# when present — a call like `open('/a/b', 'w').write('x')` has no
+# whitespace around the quoted path, so a whitespace-delimited bare-token
+# scan would instead grab `open('/a/b',` (prefix and trailing punctuation
+# glued on) as one garbage "token" and misjudge it. Only when the command
+# has no quoted strings at all does this fall back to whitespace-delimited
+# bare tokens (the shape a plain `cp /a/b /c/d` or `> /a/b` redirect uses).
+SINGLE_QUOTED = re.compile(r"'([^']*)'")
+DOUBLE_QUOTED = re.compile(r"\"((?:[^\"\\]|\\.)*)\"")
+BARE_TOKEN = re.compile(r"\S+")
+
+
+def bash_write_targets(command):
+    # Scanned independently, not as one alternation: a Bash-quoted `-c`
+    # argument is itself double-quoted and commonly contains single-quoted
+    # Python string literals inside it (e.g. `python3 -c "open('/a/b',
+    # 'w')..."`); an alternation regex would match the whole outer
+    # double-quoted span as one token first and never see the inner
+    # single-quoted path. Single-quoted tokens are checked first — they are
+    # the common case for an embedded path literal — then double-quoted,
+    # then bare whitespace-delimited tokens.
+    single = [m.group(1) for m in SINGLE_QUOTED.finditer(command) if "/" in m.group(1)]
+    if single:
+        return single
+    double = [m.group(1) for m in DOUBLE_QUOTED.finditer(command) if "/" in m.group(1)]
+    if double:
+        return double
+    return [t for t in BARE_TOKEN.findall(command) if "/" in t]
+
+
+def resolve_relative(raw_path):
+    """Resolve a path (possibly relative, possibly a symlink) against root and
+    return its repo-root-relative path, or None if it escapes the repo."""
+    normalized = raw_path.replace("\\", "/")
+    absolute = posixpath.normpath(
+        normalized if posixpath.isabs(normalized) else posixpath.join(root, normalized)
+    )
+    resolved = posixpath.normpath(os.path.realpath(absolute).replace("\\", "/"))
+    real_root = posixpath.normpath(os.path.realpath(root).replace("\\", "/"))
+    if resolved != real_root and not resolved.startswith(real_root + "/"):
+        return None
+    return resolved[len(real_root) + 1:]
+
+
+def in_scope(relative):
+    """Same containment rule the Write/Edit path applies below: the proposal's
+    own file, anything under docs/, or an entry in the frozen write set."""
+    if relative == proposal_path:
+        return True
+    if relative.split("/")[0] == "docs" or "/docs/" in "/" + relative:
+        return True
+    for entry in write_set:
+        if relative == entry or relative.startswith(entry.rstrip("/") + "/"):
+            return True
+    return False
+
+
 if tool == "Bash":
     command = tool_input.get("command")
     if not isinstance(command, str) or not command.strip():
@@ -248,6 +331,37 @@ if tool == "Bash":
             file=sys.stderr,
         )
         sys.exit(2)
+
+    if WRITE_HINTS.search(command):
+        candidates = [resolve_relative(t) for t in bash_write_targets(command)]
+        in_repo_candidates = [c for c in candidates if c is not None]
+        if not in_repo_candidates:
+            # The command writes something, but no path-shaped token in it
+            # resolves to a location inside this repo — most often because
+            # the actual target is built from a shell variable or other
+            # expression this scan cannot follow. That is exactly the
+            # "target path unknown" case: a write-capable tool call with an
+            # indeterminate destination is default-denied, never trusted.
+            print(
+                "warrant: refused — this command writes (matches a known write idiom) but its "
+                "target path could not be determined from the command text. A write-capable Bash "
+                "call with an indeterminate target is refused by default rather than trusted."
+                "\ncommand: %s" % command,
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        out_of_scope = [c for c in in_repo_candidates if not in_scope(c)]
+        if out_of_scope:
+            print(
+                "warrant: refused — this Bash command's write target `%s` is outside the write set "
+                "frozen by %s.\nApproved paths: %s\n"
+                "Finish what the proposal covers and report the rest; the discovered work becomes "
+                "the next proposal. Widening the set mid-build is what the gate exists to prevent — "
+                "including via a Bash write instead of Write/Edit."
+                % (out_of_scope[0], proposal_path, ", ".join(write_set) or "(none listed)"),
+                file=sys.stderr,
+            )
+            sys.exit(2)
 
     print(json.dumps({"hookSpecificOutput": {
         "hookEventName": "PreToolUse",
