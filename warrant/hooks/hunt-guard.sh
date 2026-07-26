@@ -1,12 +1,23 @@
 #!/usr/bin/env bash
 # PreToolUse hook: bounds the background hunters.
 #
-# Three limits, all mechanical, all enforced here rather than asked for in a
+# Two limits, both mechanical, both enforced here rather than asked for in a
 # prompt — a runaway agent is exactly the failure a prompt cannot prevent:
 #
 #   1. single flight — one hunter at a time, per project directory
 #   2. session cap  — WARRANT_HUNT_MAX dispatches (default 3), then no more
-#   3. no nesting   — a hunter may not dispatch anything at all
+#
+# Nesting (a hunter dispatching another agent) is not enforced by a branch in
+# this hook. It is foreclosed upstream: warrant-hunter.md's frontmatter tool
+# list is `Bash, Read, Grep, Glob, Write` — no `Agent`/`Task`/`Workflow` — so
+# a hunter has no tool call available to it that could ever reach this gate's
+# Agent/Task/Workflow branch in the first place. This hook's hooks.json wiring
+# (SessionStart/SubagentStop/PreToolUse commands) has no mechanism to inject
+# an environment variable into a dispatched subagent's own process, so a
+# runtime "am I currently a hunter" check was never reachable either — see
+# docs/decisions/2026-07-26-hunt-guard-nesting-enforcement.md for the full
+# trace and why single-flight plus the tool-list omission is sufficient
+# without a dedicated branch here.
 #
 # Both files this reads are maintained by hunt-state.sh: the lock is dropped
 # when a subagent stops, and both are cleared at session start. Nothing here
@@ -91,13 +102,6 @@ except (OSError, subprocess.SubprocessError):
 root = posixpath.normpath((top or root).replace("\\", "/"))
 lock = posixpath.join(root, ".warrant-hunt.lock")
 count = posixpath.join(root, ".warrant-hunt.count")
-
-# A hunter cannot dispatch: its own tool list omits Agent/Task/Workflow, and this
-# refuses the case where it is dispatched under some other type.
-if os.environ.get("WARRANT_IN_HUNT") == "1":
-    print("warrant: a hunter may not dispatch agents. It probes one stance and returns.",
-          file=sys.stderr)
-    sys.exit(2)
 
 if agent_type.lower() != "warrant-hunter":
     allow()

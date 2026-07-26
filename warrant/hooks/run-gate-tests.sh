@@ -556,6 +556,61 @@ else
   fail=$((fail+1))
 fi
 
+# =========================================================================
+# Cases 33-34: hunt-guard.sh dead nesting branch removed (contract: docs/
+# proposals/2026-07-26-hunt-guard-dead-nesting-check.md,
+# docs/decisions/2026-07-26-hunt-guard-nesting-enforcement.md). The
+# WARRANT_IN_HUNT==1 branch was removed as dead code (nothing in the
+# rulebook ever set it, and a hunter's own tool list already excludes
+# Agent/Task/Workflow). These cases confirm single-flight alone still
+# refuses a nested/concurrent warrant-hunter dispatch, so removal did not
+# weaken the "no nesting" guarantee in practice.
+# =========================================================================
+
+# Case 33: a first warrant-hunter dispatch takes the lock; a second,
+# simulating a nested dispatch attempted while the first is still running
+# (e.g. by something invoked from within the hunter's own tool call, or by
+# a concurrent dispatch), is refused by single-flight alone -- with no
+# WARRANT_IN_HUNT branch involved at all.
+root="$(new_root)"
+payload_outer='{"tool_name":"Task","tool_input":{"subagent_type":"warrant-hunter","prompt":"outer hunt"}}'
+out="$(CLAUDE_PROJECT_DIR="$root" WARRANT_OFF= bash "$HUNT_GATE" <<<"$payload_outer" 2>&1)"
+rc=$?
+if [ "$rc" -ne 0 ]; then
+  echo "FAIL: (33a) hunt-guard outer hunter dispatch -- expected allow (exit 0), got exit $rc. Output: $out"
+  fail=$((fail+1))
+else
+  echo "PASS: (33a) hunt-guard outer hunter dispatch allowed (took lock)"
+  pass=$((pass+1))
+fi
+payload_nested='{"tool_name":"Task","tool_input":{"subagent_type":"warrant-hunter","prompt":"nested hunt while outer lock held"}}'
+out="$(CLAUDE_PROJECT_DIR="$root" WARRANT_OFF= WARRANT_IN_HUNT=1 bash "$HUNT_GATE" <<<"$payload_nested" 2>&1)"
+rc=$?
+if [ "$rc" -eq 0 ]; then
+  echo "FAIL: (33b) hunt-guard nested dispatch while outer lock held -- expected deny (single-flight), got exit 0. Output: $out"
+  fail=$((fail+1))
+else
+  echo "PASS: (33b) hunt-guard nested dispatch while outer lock held refused by single-flight alone (exit $rc), WARRANT_IN_HUNT=1 in env has no special effect"
+  pass=$((pass+1))
+fi
+rm -f "$root/.warrant-hunt.lock"
+
+# Case 34: an Agent/Task/Workflow call whose subagent_type is NOT
+# warrant-hunter is unaffected by the removal -- it still allows via the
+# ordinary agent_type check, proving no new denial was introduced for
+# non-hunter dispatches regardless of WARRANT_IN_HUNT being set.
+root="$(new_root)"
+payload='{"tool_name":"Task","tool_input":{"subagent_type":"general-purpose","prompt":"unrelated nested-looking call"}}'
+out="$(CLAUDE_PROJECT_DIR="$root" WARRANT_OFF= WARRANT_IN_HUNT=1 bash "$HUNT_GATE" <<<"$payload" 2>&1)"
+rc=$?
+if [ "$rc" -eq 0 ]; then
+  echo "PASS: (34) hunt-guard non-hunter dispatch still allowed with WARRANT_IN_HUNT=1 present (var is inert)"
+  pass=$((pass+1))
+else
+  echo "FAIL: (34) hunt-guard non-hunter dispatch -- expected allow, got exit $rc. Output: $out"
+  fail=$((fail+1))
+fi
+
 echo ""
 echo "=== tally: ${pass} passed, ${fail} failed (of $((pass+fail)) cases) ==="
 if [ "$fail" -ne 0 ]; then
