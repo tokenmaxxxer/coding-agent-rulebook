@@ -116,6 +116,31 @@ for extra in (os.environ.get("DOCTRINE_ALLOW") or "").split(","):
 if directories[-1] == "docs" and name == "README.md":
     allow()
 
+# Coding's two owned paths (contract v2 section 11) require a collaboration
+# contract to be in force before coding writes to either of them. This is
+# handoff-protocol.md section 2's "Absence behavior" refusal, now enforced
+# here instead of only stated in prose.
+is_build_proposal = (
+    directories == ["docs", "proposals"] and name.endswith(".md")
+    and "-build-" in name
+)
+is_coding_record = (
+    len(directories) == 4
+    and directories[:2] == ["docs", "reports"]
+    and directories[2] == "records"
+    and name == "coding.md"
+)
+if is_build_proposal or is_coding_record:
+    if not os.path.isfile(posixpath.join(root, "docs", "specs", "role-handoff-contract.md")):
+        print(
+            "doctrine: refused — this repo has no collaboration contract yet\n"
+            "`%s` is one of coding's owned paths, but `docs/specs/role-handoff-contract.md` "
+            "is absent from this repo. Coding does not proceed as if a contract were in "
+            "force." % relative,
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
 scaffolding = None
 for i, directory in enumerate(directories):
     if directory == "docs" or "docs" not in directories[:i]:
