@@ -310,10 +310,148 @@ def in_scope(relative):
     return False
 
 
+RECORDS_ROOT_REL = "docs/reports/records"
+
+
+def _records_tree_reference(command, repo_root):
+    """If `command` text references a path inside the owned record tree
+    (docs/reports/records/<subject>/...), return (raw_token, subject, rest)
+    for the first such reference found; else None. Same superset token
+    scan bash_write_targets() below uses for write-target candidates, but
+    run over EVERY path-shaped token in the command (not only quoted ones),
+    since a plain reference for read-only purposes need not be quoted."""
+    real_root = posixpath.normpath(os.path.realpath(repo_root).replace("\\", "/"))
+    records_root = real_root + "/" + RECORDS_ROOT_REL
+    for m in re.finditer(r"'((?:[^'\\]|\\.)*)'|\"((?:[^\"\\]|\\.)*)\"|(\S+)", command):
+        tok = m.group(1) if m.group(1) is not None else (m.group(2) if m.group(2) is not None else m.group(3))
+        if not tok or "/" not in tok:
+            continue
+        tok_norm = tok.replace("\\", "/")
+        if RECORDS_ROOT_REL + "/" in tok_norm or tok_norm.rstrip("/") == real_root + "/" + RECORDS_ROOT_REL:
+            om = re.search(r"docs/reports/records/([^/\s'\"]+)/([^\s'\"]+)", tok_norm)
+            subject = om.group(1) if om else None
+            rest = om.group(2) if om else None
+            return tok_norm, subject, rest
+    return None
+
+
+# --- path-reference default-deny (contract: docs/proposals/2026-07-26-gate-nested-shell-default-deny.md) ---
+# Replaces WRITE_HINTS-idiom-triggered detection for the owned record tree
+# specifically: a Bash command that references a path inside
+# docs/reports/records/<subject>/ — coding's own record or another role's
+# — is DEFAULT-DENIED unless the reference is provably read-only (no shell
+# nesting, no command substitution, no write idiom, read-only commands
+# only). This governs the record tree only; the pre-existing WRITE_HINTS /
+# frozen-write-set logic below is unchanged for every other path.
+RECORDS_WRITE_IDIOM_RE = re.compile(
+    r"open\s*\([^)]*,\s*['\"]?[wax]"
+    r"|\.write\s*\("
+    r"|\.write_text\s*\("
+    r"|\.write_bytes\s*\("
+    r"|os\.write\s*\("
+    r"|(?<![0-9&])>{1,2}(?![&|])"
+    r"|\btee\b"
+    r"|\bdd\b"
+)
+RECORDS_NESTED_SHELL_RE = re.compile(r"\b(?:sh|bash)\s+-c\b|\beval\b")
+RECORDS_READ_ONLY_CMDS = {
+    "cat", "grep", "egrep", "fgrep", "head", "tail", "test", "ls", "[",
+    "wc", "find", "stat", "file", "sort", "uniq", "cut", "diff",
+    "md5sum", "sha256sum",
+}
+
+
+def _records_command_substitution_free(cmd):
+    return "$(" not in cmd and "`" not in cmd
+
+
+def _records_no_nested_shell(cmd):
+    return RECORDS_NESTED_SHELL_RE.search(cmd) is None
+
+
+def _records_no_write_idiom(cmd):
+    return RECORDS_WRITE_IDIOM_RE.search(cmd) is None
+
+
+def _records_only_read_commands(cmd):
+    for seg in re.split(r"[;\n]|&&|\|\|", cmd):
+        for part in seg.split("|"):
+            part = part.strip()
+            if not part:
+                continue
+            words = part.split()
+            if not words:
+                continue
+            idx = 0
+            while idx < len(words) and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", words[idx]):
+                idx += 1
+            if idx >= len(words):
+                continue
+            first = words[idx].rstrip("()")
+            if first not in RECORDS_READ_ONLY_CMDS:
+                return False
+    return True
+
+
+def _records_proven_read_only(cmd):
+    return (
+        _records_command_substitution_free(cmd)
+        and _records_no_nested_shell(cmd)
+        and _records_no_write_idiom(cmd)
+        and _records_only_read_commands(cmd)
+    )
+
+
+def records_tree_gate(command, repo_root):
+    """Returns "allow" (nothing more to say / proven read-only), "own-write"
+    (a plain self-redirection to coding's own record — caller still runs
+    the normal frozen-write-set / scope check on it below), or refuses
+    outright via sys.exit(2)."""
+    hit = _records_tree_reference(command, repo_root)
+    if hit is None:
+        return "allow"
+    raw_tok, subject, rest = hit
+    if _records_proven_read_only(command):
+        return "allow"
+
+    own_hit = rest is not None and (rest == "coding.md" or rest.startswith("coding/"))
+    plain_redirect_only = (
+        _records_command_substitution_free(command)
+        and _records_no_nested_shell(command)
+        and re.search(r"(?<![0-9&])>{1,2}(?![&|])", command) is not None
+        and re.search(
+            r"open\s*\([^)]*,\s*['\"]?[wax]|\.write\s*\(|\.write_text\s*\(|\.write_bytes\s*\(|os\.write\s*\(|\btee\b|\bdd\b",
+            command,
+        ) is None
+    )
+
+    if own_hit and plain_redirect_only:
+        # Own record, plain redirection: not proven read-only, but not
+        # refused outright either — falls through to the ordinary
+        # frozen-write-set / scope check below (contract: "자기 레코드
+        # 평이 리다이렉션 write가 합법 상태전이면 여전히 허용" — this repo
+        # has no per-record state machine of its own, so "legal" here is
+        # exactly what the frozen write set / docs-allow rule already
+        # decides for any other in-scope write).
+        return "own-write"
+
+    print(
+        "warrant: refused — this Bash command references the owned record tree "
+        "(docs/reports/records/) at %r and this reference cannot be proven read-only "
+        "(no shell nesting, no command substitution, no write idiom). Path-reference "
+        "default-deny applies to any such reference, whether it names coding's own "
+        "record or another role's." % raw_tok,
+        file=sys.stderr,
+    )
+    sys.exit(2)
+
+
 if tool == "Bash":
     command = tool_input.get("command")
     if not isinstance(command, str) or not command.strip():
         allow()
+
+    records_tree_gate(command, root)
 
     reason = withheld(command)
     if reason is not None:

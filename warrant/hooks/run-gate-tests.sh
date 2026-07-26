@@ -160,6 +160,55 @@ JSON
 )
 expect_deny "(companion) write-tool call outside write set still refused" "$root" "$payload"
 
+# =========================================================================
+# Cases 6-13: path-reference default-deny (contract: docs/proposals/
+# 2026-07-26-gate-nested-shell-default-deny.md). A Bash command referencing
+# a path inside the owned record tree (docs/reports/records/<subject>/),
+# self or foreign, is default-denied unless provably read-only. Each write
+# idiom below targets a FOREIGN role's record slot -> expect deny. A plain
+# self-redirection to coding's own record within the frozen write set is
+# still allowed. Any reference wrapped in sh -c/bash -c/eval or command
+# substitution is denied regardless of idiom.
+# =========================================================================
+root="$(new_root)"
+mkdir -p "$root/src"
+proposal="$(write_approved_proposal "$root" "case6" '  - src')"
+foreign_record="$root/docs/reports/records/other-subject/qa.md"
+
+payload="$(bash_payload "python3 -c \"open('${foreign_record}', 'w').write('x')\"")"
+expect_deny "(6) path-ref-deny foreign open().write" "$root" "$payload"
+
+payload="$(bash_payload "python3 -c \"import pathlib; pathlib.Path('${foreign_record}').write_text('x')\"")"
+expect_deny "(7) path-ref-deny foreign .write_text" "$root" "$payload"
+
+payload="$(bash_payload "python3 -c \"import pathlib; pathlib.Path('${foreign_record}').write_bytes(b'x')\"")"
+expect_deny "(8) path-ref-deny foreign .write_bytes" "$root" "$payload"
+
+payload="$(bash_payload "python3 -c \"import os; os.write(open('${foreign_record}','w').fileno(), b'x')\"")"
+expect_deny "(9) path-ref-deny foreign os.write" "$root" "$payload"
+
+payload="$(bash_payload "sh -c \"cat ${foreign_record}\"")"
+expect_deny "(10) path-ref-deny foreign sh -c wrap" "$root" "$payload"
+
+payload="$(bash_payload "bash -c \"cat ${foreign_record}\"")"
+expect_deny "(11) path-ref-deny foreign bash -c wrap" "$root" "$payload"
+
+payload="$(bash_payload "eval \"cat ${foreign_record}\"")"
+expect_deny "(12) path-ref-deny foreign eval wrap" "$root" "$payload"
+
+payload="$(bash_payload "echo \"\$(cat ${foreign_record})\"")"
+expect_deny "(13) path-ref-deny foreign command substitution wrap" "$root" "$payload"
+
+# Plain read of a foreign record -> not a write this gate refuses -> allow
+# (falls through to the ordinary in-scope/out-of-scope docs/ rule below).
+payload="$(bash_payload "cat ${foreign_record}")"
+expect_allow "(14) path-ref-allow foreign plain read" "$root" "$payload"
+
+# Own record, plain redirection, within docs/ (always in scope) -> allowed.
+own_bash_record="$root/docs/reports/records/own-subject-bash/coding.md"
+payload="$(bash_payload "printf -- 'x' > ${own_bash_record}")"
+expect_allow "(15) path-ref-allow own record plain redirect" "$root" "$payload"
+
 echo ""
 echo "=== tally: ${pass} passed, ${fail} failed (of $((pass+fail)) cases) ==="
 if [ "$fail" -ne 0 ]; then
