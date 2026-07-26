@@ -99,7 +99,7 @@ if os.environ.get("WARRANT_IN_HUNT") == "1":
           file=sys.stderr)
     sys.exit(2)
 
-if agent_type != "warrant-hunter":
+if agent_type.lower() != "warrant-hunter":
     allow()
 
 now = int(time.time())

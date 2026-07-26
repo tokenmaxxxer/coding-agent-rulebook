@@ -476,6 +476,86 @@ else
   fail=$((fail+1))
 fi
 
+# =========================================================================
+# Cases 30-32: hunt-guard.sh agent_type case-insensitivity fix (contract:
+# docs/proposals/2026-07-26-hunt-guard-case-sensitivity.md). agent_type was
+# compared case-sensitively against "warrant-hunter", so any capitalization
+# variant (e.g. WARRANT-HUNTER) bypassed the single-flight lock and session
+# cap entirely. Fixed by lowercasing agent_type before the comparison.
+# =========================================================================
+
+# Case 30: a capitalized variant takes the lock on first dispatch, then a
+# second dispatch (different casing) is denied while the lock is held.
+root="$(new_root)"
+payload_first='{"tool_name":"Task","tool_input":{"subagent_type":"WARRANT-HUNTER","prompt":"probe one"}}'
+out="$(CLAUDE_PROJECT_DIR="$root" WARRANT_OFF= bash "$HUNT_GATE" <<<"$payload_first" 2>&1)"
+rc=$?
+if [ "$rc" -ne 0 ]; then
+  echo "FAIL: (30a) hunt-guard capitalized WARRANT-HUNTER first dispatch -- expected allow (exit 0), got exit $rc. Output: $out"
+  fail=$((fail+1))
+else
+  echo "PASS: (30a) hunt-guard capitalized WARRANT-HUNTER first dispatch allowed (took lock)"
+  pass=$((pass+1))
+fi
+payload_second='{"tool_name":"Task","tool_input":{"subagent_type":"Warrant-Hunter","prompt":"probe two"}}'
+out="$(CLAUDE_PROJECT_DIR="$root" WARRANT_OFF= bash "$HUNT_GATE" <<<"$payload_second" 2>&1)"
+rc=$?
+if [ "$rc" -eq 0 ]; then
+  echo "FAIL: (30b) hunt-guard concurrent differently-cased dispatch -- expected deny (single-flight lock), got exit 0. Output: $out"
+  fail=$((fail+1))
+else
+  echo "PASS: (30b) hunt-guard concurrent differently-cased dispatch refused by single-flight lock (exit $rc)"
+  pass=$((pass+1))
+fi
+rm -f "$root/.warrant-hunt.lock"
+
+# Case 31: mixed-casing dispatches count against WARRANT_HUNT_MAX; once the
+# cap is reached, the next dispatch of any casing is denied.
+root="$(new_root)"
+for variant in "warrant-hunter" "WARRANT-HUNTER" "Warrant-Hunter"; do
+  payload=$(cat <<JSON
+{"tool_name":"Task","tool_input":{"subagent_type":"$variant","prompt":"probe"}}
+JSON
+)
+  CLAUDE_PROJECT_DIR="$root" WARRANT_OFF= WARRANT_HUNT_MAX=3 bash "$HUNT_GATE" <<<"$payload" >/dev/null 2>&1
+  rm -f "$root/.warrant-hunt.lock"
+done
+payload_capped='{"tool_name":"Task","tool_input":{"subagent_type":"wArRaNt-HuNtEr","prompt":"probe over cap"}}'
+out="$(CLAUDE_PROJECT_DIR="$root" WARRANT_OFF= WARRANT_HUNT_MAX=3 bash "$HUNT_GATE" <<<"$payload_capped" 2>&1)"
+rc=$?
+if [ "$rc" -eq 0 ]; then
+  echo "FAIL: (31) hunt-guard session cap reached via mixed casings -- expected deny, got exit 0. Output: $out"
+  fail=$((fail+1))
+else
+  echo "PASS: (31) hunt-guard session cap reached via mixed casings refuses next dispatch of any casing (exit $rc)"
+  pass=$((pass+1))
+fi
+
+# Case 32: a genuine non-hunter subagent_type still passes through allow()
+# unaffected, both as given and in a differently-cased spelling that does
+# not match warrant-hunter under any normalization.
+root="$(new_root)"
+payload='{"tool_name":"Task","tool_input":{"subagent_type":"general-purpose","prompt":"unrelated"}}'
+out="$(CLAUDE_PROJECT_DIR="$root" WARRANT_OFF= bash "$HUNT_GATE" <<<"$payload" 2>&1)"
+rc=$?
+if [ "$rc" -eq 0 ]; then
+  echo "PASS: (32a) hunt-guard genuine non-hunter dispatch (general-purpose) allowed"
+  pass=$((pass+1))
+else
+  echo "FAIL: (32a) hunt-guard genuine non-hunter dispatch -- expected allow, got exit $rc. Output: $out"
+  fail=$((fail+1))
+fi
+payload='{"tool_name":"Task","tool_input":{"subagent_type":"General-Purpose","prompt":"unrelated"}}'
+out="$(CLAUDE_PROJECT_DIR="$root" WARRANT_OFF= bash "$HUNT_GATE" <<<"$payload" 2>&1)"
+rc=$?
+if [ "$rc" -eq 0 ]; then
+  echo "PASS: (32b) hunt-guard genuine non-hunter dispatch, differently cased (General-Purpose) allowed"
+  pass=$((pass+1))
+else
+  echo "FAIL: (32b) hunt-guard genuine non-hunter dispatch, differently cased -- expected allow, got exit $rc. Output: $out"
+  fail=$((fail+1))
+fi
+
 echo ""
 echo "=== tally: ${pass} passed, ${fail} failed (of $((pass+fail)) cases) ==="
 if [ "$fail" -ne 0 ]; then
