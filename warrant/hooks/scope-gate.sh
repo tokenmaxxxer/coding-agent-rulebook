@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+__fc(){ rc=$?; if [ "$rc" != 0 ] && [ "$rc" != 2 ]; then echo "fail-closed: gate aborted (rc=$rc)" >&2; exit 2; fi; }
+trap __fc EXIT
+# ^ fail-closed trap-at-top: any abnormal termination (failed source, set -u
+#   abort, unbound var, etc.) before the verdict logic runs is forced to
+#   exit 2 (DENY), since a PreToolUse hook treats any non-2 exit as
+#   NON-BLOCKING (fail-OPEN). Installed as the FIRST executable statement,
+#   above any set/source. Legitimate exit 0 (allow) / exit 2 (deny) verdicts
+#   pass through unchanged; only other codes are remapped to 2.
 # PreToolUse hook (Write|Edit|NotebookEdit|Bash): enforces the two mechanical
 # halves of the protocol.
 #

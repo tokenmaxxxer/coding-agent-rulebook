@@ -173,6 +173,49 @@ expect_deny2 "(5) record-fields null-byte file_path fails closed" "$RECORD_FIELD
 root="$(mktemp -d -p "$WORKDIR")"
 expect_deny2 "(6) record-fields malformed JSON fails closed" "$RECORD_FIELDS_GATE" "$root" 'not json {{{'
 
+# =========================================================================
+# Cases 7-8: fail-closed trap-at-top on a PRE-LOGIC abort (contract:
+# docs/proposals/2026-07-26-gates-fail-closed-trap-at-top.md).
+#
+# The EXIT trap installed as each gate's FIRST executable statement must
+# convert ANY abnormal termination BEFORE the verdict logic runs — a failed
+# source, a set -u abort, an unbound var, a stray non-2 exit — into exit 2
+# (DENY). A PreToolUse hook treats any non-2 exit as NON-BLOCKING
+# (fail-OPEN), so this class must fail closed. We produce a temp copy of the
+# gate with a self-contained abort snippet spliced in immediately after
+# `trap __fc EXIT` (above every set/source/verdict statement) and assert the
+# copy still exits 2.
+# =========================================================================
+expect_prelogic_abort_deny2() {
+  # $1 = name, $2 = gate script path
+  local name="$1" gate="$2" tmp out rc
+  tmp="$(mktemp -p "$WORKDIR" prelogic-XXXXXX.sh)"
+  awk '
+    { print }
+    /^trap __fc EXIT$/ && !done {
+      print "set -u; : \"${__FC_TEST_UNBOUND_VAR__}\"  # induced pre-logic abort"
+      done=1
+    }
+  ' "$gate" > "$tmp"
+  if ! grep -q "__FC_TEST_UNBOUND_VAR__" "$tmp"; then
+    echo "FAIL: $name -- could not splice pre-logic abort (no 'trap __fc EXIT' line found in $gate)"
+    fail=$((fail+1))
+    return
+  fi
+  out="$(CLAUDE_PROJECT_DIR="$WORKDIR" DOCTRINE_OFF= bash "$tmp" <<<'{"tool_name":"Write","tool_input":{"file_path":"/x.md","content":"x"}}' 2>&1)"
+  rc=$?
+  if [ "$rc" -eq 2 ]; then
+    echo "PASS: $name (pre-logic abort forced to exit 2 DENY)"
+    pass=$((pass+1))
+  else
+    echo "FAIL: $name -- pre-logic abort expected exit 2 (fail-closed), got exit $rc. Output: $out"
+    fail=$((fail+1))
+  fi
+}
+
+expect_prelogic_abort_deny2 "(7) placement-gate pre-logic abort fails closed" "$GATE"
+expect_prelogic_abort_deny2 "(8) record-fields pre-logic abort fails closed" "$RECORD_FIELDS_GATE"
+
 echo ""
 echo "=== tally: ${pass} passed, ${fail} failed (of $((pass+fail)) cases) ==="
 if [ "$fail" -ne 0 ]; then

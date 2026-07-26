@@ -668,6 +668,59 @@ expect_deny2 "(39) handbook-trigger malformed JSON fails closed" "$HANDBOOK_GATE
 root="$(new_root)"
 expect_deny2 "(40) hunt-guard malformed JSON fails closed" "$HUNT_GATE" "$root" 'not json {{{'
 
+# =========================================================================
+# Cases 41-46: fail-closed trap-at-top on a PRE-LOGIC abort (contract:
+# docs/proposals/2026-07-26-gates-fail-closed-trap-at-top.md).
+#
+# The EXIT trap installed as each gate's FIRST executable statement must
+# convert ANY abnormal termination that happens BEFORE the verdict logic
+# runs — a failed `source`, a `set -u` abort, an unbound var, a stray
+# non-2 exit — into exit 2 (DENY). A PreToolUse hook treats any non-2 exit
+# as NON-BLOCKING (fail-OPEN), so this class must fail closed.
+#
+# To induce a genuine pre-logic abort in the REAL gate (these gates source
+# no _gate-common.sh to hide), we produce a temp copy of the gate with a
+# self-contained abort snippet spliced in immediately after `trap __fc EXIT`
+# — `set -u; : "${__FC_TEST_UNBOUND_VAR__}"`, which aborts with exit 1 under
+# set -u before any verdict logic — and assert the copy still exits 2.
+# =========================================================================
+
+expect_prelogic_abort_deny2() {
+  # $1 = name, $2 = gate script path
+  local name="$1" gate="$2" tmp out rc
+  tmp="$(mktemp -p "$WORKDIR" prelogic-XXXXXX.sh)"
+  # Splice the abort snippet on the line right after `trap __fc EXIT`, i.e.
+  # above every set/source/verdict statement, exercising the trap-at-top.
+  awk '
+    { print }
+    /^trap __fc EXIT$/ && !done {
+      print "set -u; : \"${__FC_TEST_UNBOUND_VAR__}\"  # induced pre-logic abort"
+      done=1
+    }
+  ' "$gate" > "$tmp"
+  if ! grep -q "__FC_TEST_UNBOUND_VAR__" "$tmp"; then
+    echo "FAIL: $name -- could not splice pre-logic abort (no 'trap __fc EXIT' line found in $gate)"
+    fail=$((fail+1))
+    return
+  fi
+  out="$(CLAUDE_PROJECT_DIR="$WORKDIR" WARRANT_OFF= bash "$tmp" <<<'{"tool_name":"Bash","tool_input":{"command":"echo hi"}}' 2>&1)"
+  rc=$?
+  if [ "$rc" -eq 2 ]; then
+    echo "PASS: $name (pre-logic abort forced to exit 2 DENY)"
+    pass=$((pass+1))
+  else
+    echo "FAIL: $name -- pre-logic abort expected exit 2 (fail-closed), got exit $rc. Output: $out"
+    fail=$((fail+1))
+  fi
+}
+
+expect_prelogic_abort_deny2 "(41) scope-gate pre-logic abort fails closed" "$GATE"
+expect_prelogic_abort_deny2 "(42) hunt-guard pre-logic abort fails closed" "$HUNT_GATE"
+expect_prelogic_abort_deny2 "(43) path-ownership pre-logic abort fails closed" "$PATH_OWNERSHIP_GATE"
+expect_prelogic_abort_deny2 "(44) build-scope pre-logic abort fails closed" "$BUILD_SCOPE_GATE"
+expect_prelogic_abort_deny2 "(45) coding-progress pre-logic abort fails closed" "$CODING_PROGRESS_GATE"
+expect_prelogic_abort_deny2 "(46) handbook-trigger pre-logic abort fails closed" "$HANDBOOK_GATE"
+
 echo ""
 echo "=== tally: ${pass} passed, ${fail} failed (of $((pass+fail)) cases) ==="
 if [ "$fail" -ne 0 ]; then
