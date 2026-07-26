@@ -117,6 +117,16 @@ if not os.path.isdir(proposals_dir):
     stand_down()
 
 
+# Comment-tolerant fence match: the opening delimiter may be followed by
+# trailing whitespace or a comment on the same line (`--- # frontmatter`),
+# same as STATUS/KIND tolerate a trailing comment on their own lines. The
+# fence line itself is still exactly three dashes, optionally trailed by
+# whitespace/comment — this is the block form every proposal in this repo
+# actually writes, not a new convention.
+FENCE_OPEN = re.compile(r"\A[ \t]*---[ \t]*(?:#.*)?\r?\n")
+FENCE_CLOSE = re.compile(r"\r?\n[ \t]*---[ \t]*(?:#.*)?[ \t]*(?:\r?\n|\Z)")
+
+
 def frontmatter(path):
     try:
         with open(path, encoding="utf-8-sig") as handle:
@@ -125,10 +135,11 @@ def frontmatter(path):
         # Unreadable bytes are as blinding as a missing closing `---`; both are
         # reported by the caller rather than crashing the gate open.
         return None
-    if not text.startswith("---"):
+    opened = FENCE_OPEN.match(text)
+    if not opened:
         return None
-    end = text.find("\n---", 3)
-    return text[3:end] if end != -1 else None
+    closed = FENCE_CLOSE.search(text, opened.end())
+    return text[opened.end():closed.start()] if closed else None
 
 
 approved = []
