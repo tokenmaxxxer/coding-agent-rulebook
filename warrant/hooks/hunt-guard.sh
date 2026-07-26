@@ -51,105 +51,114 @@ command -v python3 >/dev/null 2>&1 || {
 payload="$(cat)"
 
 WARRANT_PAYLOAD="$payload" WARRANT_HUNT_MAX="${WARRANT_HUNT_MAX:-3}" python3 <<'PY'
-import json
-import os
-import posixpath
-import subprocess
-import sys
-import time
-
-# hunt-state.sh drops the lock when a subagent stops, so this is only the
-# backstop for the case where that never fires. Observed hunter runs: 36s, 69s,
-# 163s — 900s was long enough to swallow the whole span between a proposal and
-# its landing.
-STALE_SECONDS = 300
-
-
-def allow():
-    sys.exit(0)
-
-
-def deny_intake(msg):
-    sys.stderr.write("warrant: refused — " + msg + "\n")
-    sys.exit(2)
-
-
+import sys as _fc_sys  # fail-closed-on-internal-error
 try:
-    event = json.loads(os.environ.get("WARRANT_PAYLOAD", ""))
-except ValueError:
-    deny_intake("the tool-call payload is not valid JSON; the gate cannot judge a call it cannot parse")
-if not isinstance(event, dict):
-    deny_intake("the tool-call payload is not a JSON object; the gate cannot judge a call it cannot parse")
+    import json
+    import os
+    import posixpath
+    import subprocess
+    import sys
+    import time
 
-tool = event.get("tool_name") or ""
-if tool not in ("Agent", "Task", "Workflow"):
-    allow()
+    # hunt-state.sh drops the lock when a subagent stops, so this is only the
+    # backstop for the case where that never fires. Observed hunter runs: 36s, 69s,
+    # 163s — 900s was long enough to swallow the whole span between a proposal and
+    # its landing.
+    STALE_SECONDS = 300
 
-tool_input = event.get("tool_input") if isinstance(event.get("tool_input"), dict) else {}
-agent_type = (tool_input.get("subagent_type") or "").strip()
-prompt = tool_input.get("prompt") or ""
 
-root = (os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()).replace("\\", "/")
-try:
-    top = subprocess.run(["git", "-C", root, "rev-parse", "--show-toplevel"],
-                         capture_output=True, text=True, timeout=5).stdout.strip()
-except (OSError, subprocess.SubprocessError):
-    top = ""
-# git supplies a stable root; it is not a precondition for counting. Falling
-# through to allow() here handed every non-git directory unlimited hunters —
-# the exact failure this guard exists to prevent, silently switched off by a
-# repository layout the guard has an opinion about but does not need.
-root = posixpath.normpath((top or root).replace("\\", "/"))
-lock = posixpath.join(root, ".warrant-hunt.lock")
-count = posixpath.join(root, ".warrant-hunt.count")
+    def allow():
+        sys.exit(0)
 
-if agent_type.lower() != "warrant-hunter":
-    allow()
 
-now = int(time.time())
-
-if os.path.exists(lock):
-    try:
-        with open(lock) as handle:
-            started = int((handle.read().split()[0] or "0"))
-    except (OSError, ValueError, IndexError):
-        started = 0
-    age = now - started
-    if age < STALE_SECONDS:
-        print("warrant: a hunter has been running for %ds; one at a time. Let it finish, or stop "
-              "it before dispatching another." % age, file=sys.stderr)
+    def deny_intake(msg):
+        sys.stderr.write("warrant: refused — " + msg + "\n")
         sys.exit(2)
-    print("warrant: the previous hunter has been running %ds (past %ds) and is presumed stuck. "
-          "Stop that task before this one runs — nothing in a hook can terminate it."
-          % (age, STALE_SECONDS), file=sys.stderr)
-    sys.exit(2)
 
-try:
-    with open(count) as handle:
-        used = int(handle.read().strip() or "0")
-except (OSError, ValueError):
-    used = 0
 
-cap = int(os.environ.get("WARRANT_HUNT_MAX", "3"))
-if used >= cap:
-    print("warrant: %d hunters already dispatched in this repository (cap %d). No more until the "
-          "count file is cleared: rm %s" % (used, cap, posixpath.relpath(count, root)),
-          file=sys.stderr)
-    sys.exit(2)
+    try:
+        event = json.loads(os.environ.get("WARRANT_PAYLOAD", ""))
+    except ValueError:
+        deny_intake("the tool-call payload is not valid JSON; the gate cannot judge a call it cannot parse")
+    if not isinstance(event, dict):
+        deny_intake("the tool-call payload is not a JSON object; the gate cannot judge a call it cannot parse")
 
-try:
-    with open(lock, "w") as handle:
-        handle.write("%d %s\n" % (now, (prompt.splitlines() or [""])[0][:80]))
-    with open(count, "w") as handle:
-        handle.write(str(used + 1) + "\n")
-except OSError as exc:
-    # Without a lock there is no single-flight guarantee, so decline rather than
-    # dispatch unbounded.
-    print("warrant: cannot write the hunter lock (%s); declining to dispatch one." % exc,
-          file=sys.stderr)
-    sys.exit(2)
+    tool = event.get("tool_name") or ""
+    if tool not in ("Agent", "Task", "Workflow"):
+        allow()
 
-allow()
+    tool_input = event.get("tool_input") if isinstance(event.get("tool_input"), dict) else {}
+    agent_type = (tool_input.get("subagent_type") or "").strip()
+    prompt = tool_input.get("prompt") or ""
+
+    root = (os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()).replace("\\", "/")
+    try:
+        top = subprocess.run(["git", "-C", root, "rev-parse", "--show-toplevel"],
+                             capture_output=True, text=True, timeout=5).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        top = ""
+    # git supplies a stable root; it is not a precondition for counting. Falling
+    # through to allow() here handed every non-git directory unlimited hunters —
+    # the exact failure this guard exists to prevent, silently switched off by a
+    # repository layout the guard has an opinion about but does not need.
+    root = posixpath.normpath((top or root).replace("\\", "/"))
+    lock = posixpath.join(root, ".warrant-hunt.lock")
+    count = posixpath.join(root, ".warrant-hunt.count")
+
+    if agent_type.lower() != "warrant-hunter":
+        allow()
+
+    now = int(time.time())
+
+    if os.path.exists(lock):
+        try:
+            with open(lock) as handle:
+                started = int((handle.read().split()[0] or "0"))
+        except (OSError, ValueError, IndexError):
+            started = 0
+        age = now - started
+        if age < STALE_SECONDS:
+            print("warrant: a hunter has been running for %ds; one at a time. Let it finish, or stop "
+                  "it before dispatching another." % age, file=sys.stderr)
+            sys.exit(2)
+        print("warrant: the previous hunter has been running %ds (past %ds) and is presumed stuck. "
+              "Stop that task before this one runs — nothing in a hook can terminate it."
+              % (age, STALE_SECONDS), file=sys.stderr)
+        sys.exit(2)
+
+    try:
+        with open(count) as handle:
+            used = int(handle.read().strip() or "0")
+    except (OSError, ValueError):
+        used = 0
+
+    cap = int(os.environ.get("WARRANT_HUNT_MAX", "3"))
+    if used >= cap:
+        print("warrant: %d hunters already dispatched in this repository (cap %d). No more until the "
+              "count file is cleared: rm %s" % (used, cap, posixpath.relpath(count, root)),
+              file=sys.stderr)
+        sys.exit(2)
+
+    try:
+        with open(lock, "w") as handle:
+            handle.write("%d %s\n" % (now, (prompt.splitlines() or [""])[0][:80]))
+        with open(count, "w") as handle:
+            handle.write(str(used + 1) + "\n")
+    except OSError as exc:
+        # Without a lock there is no single-flight guarantee, so decline rather than
+        # dispatch unbounded.
+        print("warrant: cannot write the hunter lock (%s); declining to dispatch one." % exc,
+              file=sys.stderr)
+        sys.exit(2)
+
+    allow()
+except Exception as _fc_e:  # fail-closed-on-internal-error
+    _fc_sys.stderr.write("hunt-guard.sh: fail-closed: internal error: %r\n" % (_fc_e,))
+    _fc_sys.exit(2)
 PY
-
-exit $?
+_fc_rc=$?  # fail-closed-on-internal-error
+if [ "$_fc_rc" -ne 0 ] && [ "$_fc_rc" -ne 2 ]; then
+  echo "hunt-guard.sh: fail-closed: internal error (judge exited $_fc_rc)" >&2
+  exit 2
+fi
+exit "$_fc_rc"

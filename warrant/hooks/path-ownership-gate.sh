@@ -57,95 +57,106 @@ fi
 [ -z "$root" ] && deny "no project root could be determined; failing closed (§11 ownership cannot be judged)."
 
 PO_PAYLOAD="$payload" PO_ROOT="$root" python3 <<'PY'
-import json, os, posixpath, re, sys
-
-def deny(m):
-    sys.stderr.write("warrant: refused — " + m + "\n"); sys.exit(2)
-
-raw = os.environ.get("PO_PAYLOAD", "")
+import sys as _fc_sys  # fail-closed-on-internal-error
 try:
-    ev = json.loads(raw) if raw else {}
-except ValueError:
-    deny("the tool-call payload is not valid JSON; the gate cannot judge §11 ownership on an unparseable write.")
-if not isinstance(ev, dict):
-    deny("the tool-call payload is not a JSON object; failing closed on §11 ownership.")
+    import json, os, posixpath, re, sys
 
-tool = ev.get("tool_name")
-ti = ev.get("tool_input")
-if not isinstance(ti, dict):
-    deny("tool_input is missing or not a JSON object; the gate cannot judge a write it cannot parse (§11).")
+    def deny(m):
+        sys.stderr.write("warrant: refused — " + m + "\n"); sys.exit(2)
 
-root = posixpath.normpath(os.environ["PO_ROOT"].replace("\\", "/"))
-OWN = "coding.md"
-RECORDS_RE = re.compile(r'^docs/reports/records/([^/]+)/(.+)$')
-
-def resolve(p):
-    n = p.replace("\\", "/")
-    a = n if posixpath.isabs(n) else posixpath.join(root, n)
-    a = posixpath.normpath(a)
+    raw = os.environ.get("PO_PAYLOAD", "")
     try:
-        return posixpath.normpath(os.path.realpath(a).replace("\\", "/"))
-    except OSError:
-        return a
+        ev = json.loads(raw) if raw else {}
+    except ValueError:
+        deny("the tool-call payload is not valid JSON; the gate cannot judge §11 ownership on an unparseable write.")
+    if not isinstance(ev, dict):
+        deny("the tool-call payload is not a JSON object; failing closed on §11 ownership.")
 
-def check(path_str):
-    r = resolve(path_str)
-    if not (r == root or r.startswith(root + "/")):
-        return
-    rel = r[len(root):].lstrip("/")
-    m = RECORDS_RE.match(rel)
-    if not m:
-        return
-    subject, tail = m.group(1), m.group(2)
-    if tail == OWN or tail.startswith("coding/"):
-        return
-    if "/" not in tail or tail.endswith(".md"):
-        deny(
-            "'%s' is owned by another role per contract §11 (coding owns only "
-            "docs/reports/records/%s/coding.md under this subject), not coding. "
-            "Report the conflict; do not overwrite or merge into another role's record."
-            % (rel, subject)
-        )
+    tool = ev.get("tool_name")
+    ti = ev.get("tool_input")
+    if not isinstance(ti, dict):
+        deny("tool_input is missing or not a JSON object; the gate cannot judge a write it cannot parse (§11).")
 
-LIT = re.compile(r'^[A-Za-z0-9_./+=,@%:-]+$')
-def is_literal(t):
-    return bool(t) and not any(c in t for c in "$`*?[]~()") and bool(LIT.match(t))
+    root = posixpath.normpath(os.environ["PO_ROOT"].replace("\\", "/"))
+    OWN = "coding.md"
+    RECORDS_RE = re.compile(r'^docs/reports/records/([^/]+)/(.+)$')
 
-targets = []
-if tool in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
-    p = ti.get("file_path") or ti.get("notebook_path")
-    if isinstance(p, str) and p:
-        targets.append(p)
-elif tool == "Bash":
-    cmd = ti.get("command")
-    if isinstance(cmd, str) and cmd.strip():
-        refs_records = "docs/reports/records/" in cmd.replace("\\", "/")
-        found = []
-        for rx in (
-            re.compile(r'(?:^|\s)\d?>{1,2}\s*(\S+)'),
-            re.compile(r'\btee\b(?:\s+-a)?\s+(\S+)'),
-            re.compile(r'\b(?:cp|mv|install)\b.*?\s(\S+)\s*$'),
-            re.compile(r"\bopen\s*\(\s*['\"]([^'\"]+)['\"]\s*,\s*['\"][wxa]"),
-        ):
-            for m in rx.finditer(cmd):
-                if m.groups() and m.group(1):
-                    found.append(m.group(1).strip().strip("'\""))
-        if refs_records:
-            for m in re.finditer(r"docs/reports/records/[^\s'\"`)]+", cmd.replace("\\", "/")):
-                tok = m.group(0)
-                if is_literal(tok):
-                    targets.append(tok)
-                else:
-                    deny(
-                        "this Bash command references the records tree with a target the "
-                        "gate cannot statically resolve; failing closed on §11 ownership."
-                    )
-        for g in found:
-            if is_literal(g):
-                targets.append(g)
+    def resolve(p):
+        n = p.replace("\\", "/")
+        a = n if posixpath.isabs(n) else posixpath.join(root, n)
+        a = posixpath.normpath(a)
+        try:
+            return posixpath.normpath(os.path.realpath(a).replace("\\", "/"))
+        except OSError:
+            return a
 
-for t in targets:
-    check(t)
+    def check(path_str):
+        r = resolve(path_str)
+        if not (r == root or r.startswith(root + "/")):
+            return
+        rel = r[len(root):].lstrip("/")
+        m = RECORDS_RE.match(rel)
+        if not m:
+            return
+        subject, tail = m.group(1), m.group(2)
+        if tail == OWN or tail.startswith("coding/"):
+            return
+        if "/" not in tail or tail.endswith(".md"):
+            deny(
+                "'%s' is owned by another role per contract §11 (coding owns only "
+                "docs/reports/records/%s/coding.md under this subject), not coding. "
+                "Report the conflict; do not overwrite or merge into another role's record."
+                % (rel, subject)
+            )
 
-sys.exit(0)
+    LIT = re.compile(r'^[A-Za-z0-9_./+=,@%:-]+$')
+    def is_literal(t):
+        return bool(t) and not any(c in t for c in "$`*?[]~()") and bool(LIT.match(t))
+
+    targets = []
+    if tool in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
+        p = ti.get("file_path") or ti.get("notebook_path")
+        if isinstance(p, str) and p:
+            targets.append(p)
+    elif tool == "Bash":
+        cmd = ti.get("command")
+        if isinstance(cmd, str) and cmd.strip():
+            refs_records = "docs/reports/records/" in cmd.replace("\\", "/")
+            found = []
+            for rx in (
+                re.compile(r'(?:^|\s)\d?>{1,2}\s*(\S+)'),
+                re.compile(r'\btee\b(?:\s+-a)?\s+(\S+)'),
+                re.compile(r'\b(?:cp|mv|install)\b.*?\s(\S+)\s*$'),
+                re.compile(r"\bopen\s*\(\s*['\"]([^'\"]+)['\"]\s*,\s*['\"][wxa]"),
+            ):
+                for m in rx.finditer(cmd):
+                    if m.groups() and m.group(1):
+                        found.append(m.group(1).strip().strip("'\""))
+            if refs_records:
+                for m in re.finditer(r"docs/reports/records/[^\s'\"`)]+", cmd.replace("\\", "/")):
+                    tok = m.group(0)
+                    if is_literal(tok):
+                        targets.append(tok)
+                    else:
+                        deny(
+                            "this Bash command references the records tree with a target the "
+                            "gate cannot statically resolve; failing closed on §11 ownership."
+                        )
+            for g in found:
+                if is_literal(g):
+                    targets.append(g)
+
+    for t in targets:
+        check(t)
+
+    sys.exit(0)
+except Exception as _fc_e:  # fail-closed-on-internal-error
+    _fc_sys.stderr.write("path-ownership-gate.sh: fail-closed: internal error: %r\n" % (_fc_e,))
+    _fc_sys.exit(2)
 PY
+_fc_rc=$?  # fail-closed-on-internal-error
+if [ "$_fc_rc" -ne 0 ] && [ "$_fc_rc" -ne 2 ]; then
+  echo "path-ownership-gate.sh: fail-closed: internal error (judge exited $_fc_rc)" >&2
+  exit 2
+fi
+exit "$_fc_rc"

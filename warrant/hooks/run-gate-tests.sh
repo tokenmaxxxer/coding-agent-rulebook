@@ -611,6 +611,63 @@ else
   fail=$((fail+1))
 fi
 
+# =========================================================================
+# Cases 35-39: fail-closed on ANY internal error (contract:
+# docs/proposals/2026-07-26-gates-fail-closed-on-internal-error.md).
+# A crash-inducing payload — a null byte embedded in tool_input.file_path
+# (which makes os.path.realpath raise an uncaught ValueError -> exit 1 =
+# fail-OPEN before the fix), or malformed JSON — must resolve to exit 2
+# (DENY), never any other non-zero code that a PreToolUse hook treats as
+# non-blocking. Each gate script is exercised with such a payload.
+# =========================================================================
+
+BUILD_SCOPE_GATE="$HOOK_DIR/build-scope-gate.sh"
+CODING_PROGRESS_GATE="$HOOK_DIR/coding-progress-gate.sh"
+HANDBOOK_GATE="$HOOK_DIR/handbook-trigger-gate.sh"
+PATH_OWNERSHIP_GATE="$HOOK_DIR/path-ownership-gate.sh"
+
+expect_deny2() {
+  # expect_deny asserting exactly exit 2 (a PreToolUse hook BLOCKS only on 2).
+  # $1 name, $2 gate, $3 root, $4 payload
+  local name="$1" gate="$2" root="$3" payload="$4" out rc
+  out="$(CLAUDE_PROJECT_DIR="$root" WARRANT_OFF= bash "$gate" <<<"$payload" 2>&1)"
+  rc=$?
+  if [ "$rc" -eq 2 ]; then
+    echo "PASS: $name (exit 2 DENY)"
+    pass=$((pass+1))
+  else
+    echo "FAIL: $name -- expected exit 2 (DENY/fail-closed), got exit $rc. Output: $out"
+    fail=$((fail+1))
+  fi
+}
+
+# --- (35) scope-gate.sh: null byte in file_path -> DENY (exit 2) ----------
+root="$(new_root)"; mkdir -p "$root/src"
+proposal="$(write_approved_proposal "$root" "case35" '  - src')"
+payload="$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s/src/x\\u0000.py","content":"x"}}' "$root")"
+expect_deny2 "(35) scope-gate null-byte file_path fails closed" "$GATE" "$root" "$payload"
+
+# --- (36) path-ownership-gate.sh: null byte in file_path -> DENY (exit 2) -
+root="$(new_root)"
+payload="$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s/docs/reports/records/subj/qa\\u0000.md","content":"x"}}' "$root")"
+expect_deny2 "(36) path-ownership null-byte file_path fails closed" "$PATH_OWNERSHIP_GATE" "$root" "$payload"
+
+# --- (37) build-scope-gate.sh: malformed JSON -> DENY (exit 2) ------------
+root="$(new_root)"
+expect_deny2 "(37) build-scope malformed JSON fails closed" "$BUILD_SCOPE_GATE" "$root" 'not json {{{'
+
+# --- (38) coding-progress-gate.sh: malformed JSON -> DENY (exit 2) --------
+root="$(new_root)"
+expect_deny2 "(38) coding-progress malformed JSON fails closed" "$CODING_PROGRESS_GATE" "$root" 'not json {{{'
+
+# --- (39) handbook-trigger-gate.sh: malformed JSON -> DENY (exit 2) -------
+root="$(new_root)"
+expect_deny2 "(39) handbook-trigger malformed JSON fails closed" "$HANDBOOK_GATE" "$root" 'not json {{{'
+
+# --- (40) hunt-guard.sh: malformed JSON -> DENY (exit 2), fail-closed -----
+root="$(new_root)"
+expect_deny2 "(40) hunt-guard malformed JSON fails closed" "$HUNT_GATE" "$root" 'not json {{{'
+
 echo ""
 echo "=== tally: ${pass} passed, ${fail} failed (of $((pass+fail)) cases) ==="
 if [ "$fail" -ne 0 ]; then

@@ -59,140 +59,151 @@ fi
 [ -z "$root" ] && deny "no project root could be determined; failing closed (§20 field check cannot run)."
 
 RF_PAYLOAD="$payload" RF_ROOT="$root" python3 <<'PY'
-import json, os, posixpath, re, sys
-
-def deny(m):
-    sys.stderr.write("doctrine: refused — " + m + "\n"); sys.exit(2)
-
-raw = os.environ.get("RF_PAYLOAD", "")
+import sys as _fc_sys  # fail-closed-on-internal-error
 try:
-    ev = json.loads(raw) if raw else {}
-except ValueError:
-    deny("the tool-call payload is not valid JSON; the gate cannot judge §20 fields on an unparseable write.")
-if not isinstance(ev, dict):
-    deny("the tool-call payload is not a JSON object; failing closed on §20.")
+    import json, os, posixpath, re, sys
 
-tool = ev.get("tool_name")
-ti = ev.get("tool_input")
-if not isinstance(ti, dict):
-    deny("tool_input is missing or not a JSON object; the gate cannot judge a write it cannot parse (§20).")
+    def deny(m):
+        sys.stderr.write("doctrine: refused — " + m + "\n"); sys.exit(2)
 
-root = posixpath.normpath(os.environ["RF_ROOT"].replace("\\", "/"))
-RECORDS_RE = re.compile(r'^docs/reports/records/([^/]+)/coding\.md$')
-
-def resolve(p):
-    n = p.replace("\\", "/")
-    a = n if posixpath.isabs(n) else posixpath.join(root, n)
-    a = posixpath.normpath(a)
+    raw = os.environ.get("RF_PAYLOAD", "")
     try:
-        return posixpath.normpath(os.path.realpath(a).replace("\\", "/"))
-    except OSError:
-        return a
+        ev = json.loads(raw) if raw else {}
+    except ValueError:
+        deny("the tool-call payload is not valid JSON; the gate cannot judge §20 fields on an unparseable write.")
+    if not isinstance(ev, dict):
+        deny("the tool-call payload is not a JSON object; failing closed on §20.")
 
-# Only Write/Edit/MultiEdit reach coding.md in a form whose full resulting
-# content we can read. A Bash write to the record is out of this gate's scope
-# (path-ownership-gate/scope-gate handle Bash); this gate passes it through.
-path = None
-if tool in ("Write", "Edit", "MultiEdit"):
-    p = ti.get("file_path")
-    if isinstance(p, str) and p:
-        path = p
-if path is None:
-    sys.exit(0)
+    tool = ev.get("tool_name")
+    ti = ev.get("tool_input")
+    if not isinstance(ti, dict):
+        deny("tool_input is missing or not a JSON object; the gate cannot judge a write it cannot parse (§20).")
 
-r = resolve(path)
-if not (r.startswith(root + "/")):
-    sys.exit(0)
-rel = r[len(root):].lstrip("/")
-if not RECORDS_RE.match(rel):
-    sys.exit(0)  # not coding's own record — not this gate's business
+    root = posixpath.normpath(os.environ["RF_ROOT"].replace("\\", "/"))
+    RECORDS_RE = re.compile(r'^docs/reports/records/([^/]+)/coding\.md$')
 
-# --- reconstruct the proposed resulting content ---------------------------
-current = None
-if os.path.isfile(r):
-    try:
-        with open(r, encoding="utf-8-sig") as fh:
-            current = fh.read(1 << 20)
-    except OSError:
-        deny("coding.md exists but cannot be read; failing closed on §20.")
+    def resolve(p):
+        n = p.replace("\\", "/")
+        a = n if posixpath.isabs(n) else posixpath.join(root, n)
+        a = posixpath.normpath(a)
+        try:
+            return posixpath.normpath(os.path.realpath(a).replace("\\", "/"))
+        except OSError:
+            return a
 
-new_text = None
-if tool == "Write":
-    c = ti.get("content")
-    if isinstance(c, str):
-        new_text = c
-elif tool == "Edit":
-    o, n = ti.get("old_string"), ti.get("new_string")
-    if isinstance(o, str) and isinstance(n, str) and current is not None and o in current:
-        new_text = current.replace(o, n, 1)
-elif tool == "MultiEdit":
-    edits = ti.get("edits")
-    text = current
-    if isinstance(edits, list) and text is not None:
-        ok = True
-        for e in edits:
-            if not isinstance(e, dict):
-                ok = False; break
-            o, n = e.get("old_string"), e.get("new_string")
-            if not isinstance(o, str) or not isinstance(n, str) or o not in text:
-                ok = False; break
-            text = text.replace(o, n, 1)
-        if ok:
-            new_text = text
+    # Only Write/Edit/MultiEdit reach coding.md in a form whose full resulting
+    # content we can read. A Bash write to the record is out of this gate's scope
+    # (path-ownership-gate/scope-gate handle Bash); this gate passes it through.
+    path = None
+    if tool in ("Write", "Edit", "MultiEdit"):
+        p = ti.get("file_path")
+        if isinstance(p, str) and p:
+            path = p
+    if path is None:
+        sys.exit(0)
 
-if new_text is None:
-    deny(
-        "this write targets coding.md but the gate cannot determine the resulting content "
-        "from the tool input (tool=%r). Write the full record with Write, or use an "
-        "Edit/MultiEdit whose old_string matches, so §20 fields can be checked." % tool
-    )
+    r = resolve(path)
+    if not (r.startswith(root + "/")):
+        sys.exit(0)
+    rel = r[len(root):].lstrip("/")
+    if not RECORDS_RE.match(rel):
+        sys.exit(0)  # not coding's own record — not this gate's business
 
-low = new_text.lower()
+    # --- reconstruct the proposed resulting content ---------------------------
+    current = None
+    if os.path.isfile(r):
+        try:
+            with open(r, encoding="utf-8-sig") as fh:
+                current = fh.read(1 << 20)
+        except OSError:
+            deny("coding.md exists but cannot be read; failing closed on §20.")
 
-def has_any(*needles):
-    return any(nd in low for nd in needles)
+    new_text = None
+    if tool == "Write":
+        c = ti.get("content")
+        if isinstance(c, str):
+            new_text = c
+    elif tool == "Edit":
+        o, n = ti.get("old_string"), ti.get("new_string")
+        if isinstance(o, str) and isinstance(n, str) and current is not None and o in current:
+            new_text = current.replace(o, n, 1)
+    elif tool == "MultiEdit":
+        edits = ti.get("edits")
+        text = current
+        if isinstance(edits, list) and text is not None:
+            ok = True
+            for e in edits:
+                if not isinstance(e, dict):
+                    ok = False; break
+                o, n = e.get("old_string"), e.get("new_string")
+                if not isinstance(o, str) or not isinstance(n, str) or o not in text:
+                    ok = False; break
+                text = text.replace(o, n, 1)
+            if ok:
+                new_text = text
 
-missing = []
-# what was done
-if not has_any("what was done", "what i did", "## done", "work done", "summary of work"):
-    missing.append("what-was-done")
-# why
-if not has_any("why", "rationale", "reason:"):
-    missing.append("why")
-# upstream basis (commit sha or record path)
-if not (has_any("upstream", "based on", "basis:")
-        or re.search(r'\b[0-9a-f]{7,40}\b', new_text)
-        or "docs/reports/records/" in new_text):
-    missing.append("upstream-basis")
-# loop_state
-m_ls = re.search(r'^\s*loop_state:\s*([A-Za-z0-9_-]+)\s*$', new_text, re.M)
-if not m_ls:
-    missing.append("loop_state")
-# open findings
-if not has_any("open findings", "open_findings", "open finding"):
-    missing.append("open-findings")
-
-if missing:
-    deny(
-        "record is missing required section(s): %s. Per contract §20 every role record "
-        "must state what was done, why, the concrete upstream basis, its own loop_state, "
-        "and open findings." % ", ".join(missing)
-    )
-
-TERMINAL = {"cleared", "reported", "round-done"}
-loop_state = m_ls.group(1).strip().lower()
-if loop_state not in TERMINAL:
-    open_missing = []
-    if not has_any("next steps", "next-steps", "next_steps"):
-        open_missing.append("next-steps")
-    if not has_any("resolution path", "resolution-path", "resolution_path"):
-        open_missing.append("open-finding-resolution-path")
-    if open_missing:
+    if new_text is None:
         deny(
-            "record shows loop_state '%s' (work left open) but is missing: %s. Per §20, an "
-            "open-state record must additionally give next-steps and an open-finding "
-            "resolution path." % (loop_state, ", ".join(open_missing))
+            "this write targets coding.md but the gate cannot determine the resulting content "
+            "from the tool input (tool=%r). Write the full record with Write, or use an "
+            "Edit/MultiEdit whose old_string matches, so §20 fields can be checked." % tool
         )
 
-sys.exit(0)
+    low = new_text.lower()
+
+    def has_any(*needles):
+        return any(nd in low for nd in needles)
+
+    missing = []
+    # what was done
+    if not has_any("what was done", "what i did", "## done", "work done", "summary of work"):
+        missing.append("what-was-done")
+    # why
+    if not has_any("why", "rationale", "reason:"):
+        missing.append("why")
+    # upstream basis (commit sha or record path)
+    if not (has_any("upstream", "based on", "basis:")
+            or re.search(r'\b[0-9a-f]{7,40}\b', new_text)
+            or "docs/reports/records/" in new_text):
+        missing.append("upstream-basis")
+    # loop_state
+    m_ls = re.search(r'^\s*loop_state:\s*([A-Za-z0-9_-]+)\s*$', new_text, re.M)
+    if not m_ls:
+        missing.append("loop_state")
+    # open findings
+    if not has_any("open findings", "open_findings", "open finding"):
+        missing.append("open-findings")
+
+    if missing:
+        deny(
+            "record is missing required section(s): %s. Per contract §20 every role record "
+            "must state what was done, why, the concrete upstream basis, its own loop_state, "
+            "and open findings." % ", ".join(missing)
+        )
+
+    TERMINAL = {"cleared", "reported", "round-done"}
+    loop_state = m_ls.group(1).strip().lower()
+    if loop_state not in TERMINAL:
+        open_missing = []
+        if not has_any("next steps", "next-steps", "next_steps"):
+            open_missing.append("next-steps")
+        if not has_any("resolution path", "resolution-path", "resolution_path"):
+            open_missing.append("open-finding-resolution-path")
+        if open_missing:
+            deny(
+                "record shows loop_state '%s' (work left open) but is missing: %s. Per §20, an "
+                "open-state record must additionally give next-steps and an open-finding "
+                "resolution path." % (loop_state, ", ".join(open_missing))
+            )
+
+    sys.exit(0)
+except Exception as _fc_e:  # fail-closed-on-internal-error
+    _fc_sys.stderr.write("record-fields-gate.sh: fail-closed: internal error: %r\n" % (_fc_e,))
+    _fc_sys.exit(2)
 PY
+_fc_rc=$?  # fail-closed-on-internal-error
+if [ "$_fc_rc" -ne 0 ] && [ "$_fc_rc" -ne 2 ]; then
+  echo "record-fields-gate.sh: fail-closed: internal error (judge exited $_fc_rc)" >&2
+  exit 2
+fi
+exit "$_fc_rc"

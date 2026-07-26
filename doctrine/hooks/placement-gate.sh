@@ -49,150 +49,159 @@ command -v python3 >/dev/null 2>&1 || {
 payload="$(cat)"
 
 DOCTRINE_PAYLOAD="$payload" python3 <<'PY'
-import json
-import os
-import posixpath
-import sys
-
-BUCKETS = ("decisions", "handbooks", "reports", "specs", "proposals", "_assets")
-# Vendored, generated, or otherwise not-ours trees.
-SKIP_DIRS = (
-    "node_modules", "vendor", "dist", "build", "target", "out",
-    "venv", ".venv", "site-packages", "coverage",
-)
-
-
-def allow():
-    sys.exit(0)
-
-
-def deny(msg):
-    sys.stderr.write("doctrine: refused — " + msg + "\n")
-    sys.exit(2)
-
-
+import sys as _fc_sys  # fail-closed-on-internal-error
 try:
-    event = json.loads(os.environ.get("DOCTRINE_PAYLOAD", ""))
-except ValueError:
-    deny("the tool-call payload is not valid JSON; the gate cannot judge a write it cannot parse")
+    import json
+    import os
+    import posixpath
+    import sys
 
-if not isinstance(event, dict):
-    deny("the tool-call payload is not a JSON object; the gate cannot judge a write it cannot parse")
+    BUCKETS = ("decisions", "handbooks", "reports", "specs", "proposals", "_assets")
+    # Vendored, generated, or otherwise not-ours trees.
+    SKIP_DIRS = (
+        "node_modules", "vendor", "dist", "build", "target", "out",
+        "venv", ".venv", "site-packages", "coverage",
+    )
 
-tool_input = event.get("tool_input")
-if not isinstance(tool_input, dict):
-    deny("tool_input is missing or not a JSON object; the gate cannot judge a write it cannot parse")
 
-path = tool_input.get("file_path") or tool_input.get("notebook_path")
-if not isinstance(path, str) or not path:
-    deny("no usable file_path/notebook_path in tool_input; the gate cannot judge a write it cannot identify")
+    def allow():
+        sys.exit(0)
 
-normalized = path.replace("\\", "/")
 
-root = (os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()).replace("\\", "/")
-absolute = posixpath.normpath(
-    normalized if posixpath.isabs(normalized) else posixpath.join(root, normalized)
-)
-root = posixpath.normpath(root)
-
-# Outside the project entirely (scratch dirs, /tmp) — not this gate's business.
-if absolute != root and not absolute.startswith(root + "/"):
-    allow()
-
-# A bucket entry can be a symlink. What the doctrine governs is where the bytes
-# land, so resolve first and then apply the ordinary rule to the destination: a
-# link out of docs/ is a document that is not in docs/, which this gate has no
-# claim on — exactly as if it had been written there directly.
-resolved = posixpath.normpath(os.path.realpath(absolute).replace("\\", "/"))
-real_root = posixpath.normpath(os.path.realpath(root).replace("\\", "/"))
-if absolute != resolved:
-    if resolved != real_root and not resolved.startswith(real_root + "/"):
-        allow()
-    absolute, root = resolved, real_root
-
-relative = absolute[len(root) + 1:]
-segments = [s for s in relative.split("/") if s not in ("", ".")]
-if not segments:
-    allow()
-
-directories, name = segments[:-1], segments[-1]
-
-if "docs" not in directories:
-    allow()
-
-for extra in (os.environ.get("DOCTRINE_ALLOW") or "").split(","):
-    extra = extra.strip().strip("/")
-    if extra and (extra in directories or relative == extra or relative.startswith(extra + "/")):
-        allow()
-
-# The doctrine file a team writes for itself sits at the top of docs/.
-if directories[-1] == "docs" and name == "README.md":
-    allow()
-
-# Coding's two owned paths (contract v2 section 11) require a collaboration
-# contract to be in force before coding writes to either of them. This is
-# handoff-protocol.md section 2's "Absence behavior" refusal, now enforced
-# here instead of only stated in prose.
-is_build_proposal = (
-    directories == ["docs", "proposals"] and name.endswith(".md")
-    and "-build-" in name
-)
-is_coding_record = (
-    len(directories) == 4
-    and directories[:2] == ["docs", "reports"]
-    and directories[2] == "records"
-    and name == "coding.md"
-)
-if is_build_proposal or is_coding_record:
-    if not os.path.isfile(posixpath.join(root, "docs", "specs", "role-handoff-contract.md")):
-        print(
-            "doctrine: refused — this repo has no collaboration contract yet\n"
-            "`%s` is one of coding's owned paths, but `docs/specs/role-handoff-contract.md` "
-            "is absent from this repo. Coding does not proceed as if a contract were in "
-            "force." % relative,
-            file=sys.stderr,
-        )
+    def deny(msg):
+        sys.stderr.write("doctrine: refused — " + msg + "\n")
         sys.exit(2)
 
-scaffolding = None
-for i, directory in enumerate(directories):
-    if directory == "docs" or "docs" not in directories[:i]:
-        continue
-    if directory in BUCKETS:
+
+    try:
+        event = json.loads(os.environ.get("DOCTRINE_PAYLOAD", ""))
+    except ValueError:
+        deny("the tool-call payload is not valid JSON; the gate cannot judge a write it cannot parse")
+
+    if not isinstance(event, dict):
+        deny("the tool-call payload is not a JSON object; the gate cannot judge a write it cannot parse")
+
+    tool_input = event.get("tool_input")
+    if not isinstance(tool_input, dict):
+        deny("tool_input is missing or not a JSON object; the gate cannot judge a write it cannot parse")
+
+    path = tool_input.get("file_path") or tool_input.get("notebook_path")
+    if not isinstance(path, str) or not path:
+        deny("no usable file_path/notebook_path in tool_input; the gate cannot judge a write it cannot identify")
+
+    normalized = path.replace("\\", "/")
+
+    root = (os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()).replace("\\", "/")
+    absolute = posixpath.normpath(
+        normalized if posixpath.isabs(normalized) else posixpath.join(root, normalized)
+    )
+    root = posixpath.normpath(root)
+
+    # Outside the project entirely (scratch dirs, /tmp) — not this gate's business.
+    if absolute != root and not absolute.startswith(root + "/"):
         allow()
-    if directory in SKIP_DIRS or directory.startswith("."):
-        # Tooling already on disk is left alone; a new one is new structure.
-        if os.path.isdir(posixpath.join(root, *directories[:i + 1])):
+
+    # A bucket entry can be a symlink. What the doctrine governs is where the bytes
+    # land, so resolve first and then apply the ordinary rule to the destination: a
+    # link out of docs/ is a document that is not in docs/, which this gate has no
+    # claim on — exactly as if it had been written there directly.
+    resolved = posixpath.normpath(os.path.realpath(absolute).replace("\\", "/"))
+    real_root = posixpath.normpath(os.path.realpath(root).replace("\\", "/"))
+    if absolute != resolved:
+        if resolved != real_root and not resolved.startswith(real_root + "/"):
             allow()
-        scaffolding = "/".join(directories[:i + 1])
-    break
+        absolute, root = resolved, real_root
 
-buckets = ", ".join(b + "/" for b in BUCKETS)
-if scaffolding:
-    reason = (
-        "`%s` would create `%s`, a new directory under docs/ that is not one of the six "
-        "buckets. Doc-site tooling already on disk is left alone, but new structure under "
-        "docs/ is not invented here." % (relative, scaffolding)
-    )
-else:
-    reason = (
-        "`%s` is under docs/ but not in one of the six buckets. Every file under docs/ "
-        "belongs to a bucket — images and attachments go in _assets/." % relative
-    )
+    relative = absolute[len(root) + 1:]
+    segments = [s for s in relative.split("/") if s not in ("", ".")]
+    if not segments:
+        allow()
 
-print(
-    "doctrine: refused — %s\n"
-    "The buckets are: %s.\n"
-    "Classify by lifetime, not topic: undecided -> proposals/; invalidated by a code change -> specs/; "
-    "kept current from now on -> handbooks/; why a hard-to-reverse choice was made -> decisions/; "
-    "an observation fixed to a point in time -> reports/ (research under reports/research/).\n"
-    "Create the bucket if it does not exist yet, then write there. Only docs/README.md may sit at the "
-    "top of docs/; paths in DOCTRINE_ALLOW are exempt. A repository README describing other directories "
-    "does not change this — the buckets are enforced here, and DOCTRINE_ALLOW is how a repository adds to them."
-    % (reason, buckets),
-    file=sys.stderr,
-)
-sys.exit(2)
+    directories, name = segments[:-1], segments[-1]
+
+    if "docs" not in directories:
+        allow()
+
+    for extra in (os.environ.get("DOCTRINE_ALLOW") or "").split(","):
+        extra = extra.strip().strip("/")
+        if extra and (extra in directories or relative == extra or relative.startswith(extra + "/")):
+            allow()
+
+    # The doctrine file a team writes for itself sits at the top of docs/.
+    if directories[-1] == "docs" and name == "README.md":
+        allow()
+
+    # Coding's two owned paths (contract v2 section 11) require a collaboration
+    # contract to be in force before coding writes to either of them. This is
+    # handoff-protocol.md section 2's "Absence behavior" refusal, now enforced
+    # here instead of only stated in prose.
+    is_build_proposal = (
+        directories == ["docs", "proposals"] and name.endswith(".md")
+        and "-build-" in name
+    )
+    is_coding_record = (
+        len(directories) == 4
+        and directories[:2] == ["docs", "reports"]
+        and directories[2] == "records"
+        and name == "coding.md"
+    )
+    if is_build_proposal or is_coding_record:
+        if not os.path.isfile(posixpath.join(root, "docs", "specs", "role-handoff-contract.md")):
+            print(
+                "doctrine: refused — this repo has no collaboration contract yet\n"
+                "`%s` is one of coding's owned paths, but `docs/specs/role-handoff-contract.md` "
+                "is absent from this repo. Coding does not proceed as if a contract were in "
+                "force." % relative,
+                file=sys.stderr,
+            )
+            sys.exit(2)
+
+    scaffolding = None
+    for i, directory in enumerate(directories):
+        if directory == "docs" or "docs" not in directories[:i]:
+            continue
+        if directory in BUCKETS:
+            allow()
+        if directory in SKIP_DIRS or directory.startswith("."):
+            # Tooling already on disk is left alone; a new one is new structure.
+            if os.path.isdir(posixpath.join(root, *directories[:i + 1])):
+                allow()
+            scaffolding = "/".join(directories[:i + 1])
+        break
+
+    buckets = ", ".join(b + "/" for b in BUCKETS)
+    if scaffolding:
+        reason = (
+            "`%s` would create `%s`, a new directory under docs/ that is not one of the six "
+            "buckets. Doc-site tooling already on disk is left alone, but new structure under "
+            "docs/ is not invented here." % (relative, scaffolding)
+        )
+    else:
+        reason = (
+            "`%s` is under docs/ but not in one of the six buckets. Every file under docs/ "
+            "belongs to a bucket — images and attachments go in _assets/." % relative
+        )
+
+    print(
+        "doctrine: refused — %s\n"
+        "The buckets are: %s.\n"
+        "Classify by lifetime, not topic: undecided -> proposals/; invalidated by a code change -> specs/; "
+        "kept current from now on -> handbooks/; why a hard-to-reverse choice was made -> decisions/; "
+        "an observation fixed to a point in time -> reports/ (research under reports/research/).\n"
+        "Create the bucket if it does not exist yet, then write there. Only docs/README.md may sit at the "
+        "top of docs/; paths in DOCTRINE_ALLOW are exempt. A repository README describing other directories "
+        "does not change this — the buckets are enforced here, and DOCTRINE_ALLOW is how a repository adds to them."
+        % (reason, buckets),
+        file=sys.stderr,
+    )
+    sys.exit(2)
+except Exception as _fc_e:  # fail-closed-on-internal-error
+    _fc_sys.stderr.write("placement-gate.sh: fail-closed: internal error: %r\n" % (_fc_e,))
+    _fc_sys.exit(2)
 PY
-
-exit $?
+_fc_rc=$?  # fail-closed-on-internal-error
+if [ "$_fc_rc" -ne 0 ] && [ "$_fc_rc" -ne 2 ]; then
+  echo "placement-gate.sh: fail-closed: internal error (judge exited $_fc_rc)" >&2
+  exit 2
+fi
+exit "$_fc_rc"
