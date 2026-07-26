@@ -14,7 +14,10 @@
 # approved, or several at once (ambiguous) — the gate stands down rather than
 # guessing.
 #
-# Fails open on a missing python3, unreadable payload, or unexpected schema.
+# Fails closed on a missing python3 or an unreadable/malformed intake
+# payload (unparseable JSON, non-dict event, non-dict tool_input) — the gate
+# cannot judge a write it cannot parse. The core write-set/root/bash-target
+# logic downstream remains default-deny as before.
 # Kill switch: export WARRANT_OFF=1
 
 # Off means off: `X_OFF=0` and `X_OFF=false` read as "not off" to a user and to
@@ -25,7 +28,10 @@ case "${WARRANT_OFF:-}" in
   *) exit 0 ;;
 esac
 
-command -v python3 >/dev/null 2>&1 || exit 0
+command -v python3 >/dev/null 2>&1 || {
+  echo "warrant: refused — scope-gate.sh requires python3, which is not on PATH; denying rather than guessing." >&2
+  exit 2
+}
 
 payload="$(cat)"
 
@@ -55,17 +61,22 @@ def allow():
     sys.exit(0)
 
 
+def deny_intake(msg):
+    sys.stderr.write("warrant: refused — " + msg + "\n")
+    sys.exit(2)
+
+
 try:
     event = json.loads(os.environ.get("WARRANT_PAYLOAD", ""))
 except ValueError:
-    allow()
+    deny_intake("the tool-call payload is not valid JSON; the gate cannot judge a write it cannot parse")
 if not isinstance(event, dict):
-    allow()
+    deny_intake("the tool-call payload is not a JSON object; the gate cannot judge a write it cannot parse")
 
 tool = event.get("tool_name") or ""
 tool_input = event.get("tool_input")
 if not isinstance(tool_input, dict):
-    allow()
+    deny_intake("tool_input is missing or not a JSON object; the gate cannot judge a write it cannot parse")
 
 # --- gate-protection root resolution (contract: docs/proposals/2026-07-26-gate-root-from-project-dir.md) ---
 # root candidate: CLAUDE_PROJECT_DIR when set; otherwise the git top-level of

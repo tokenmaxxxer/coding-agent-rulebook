@@ -18,6 +18,10 @@
 # make a stale one visible — the lock carries its start time, and a later
 # dispatch reports the age so the session can stop it deliberately.
 #
+# Fails closed on a missing python3 or an unreadable/malformed intake
+# payload (unparseable JSON, non-dict event) — the gate cannot judge a call
+# it cannot parse. The core single-flight/cap logic downstream remains
+# default-deny as before.
 # Kill switch: export WARRANT_OFF=1
 
 # Off means off: `X_OFF=0` and `X_OFF=false` read as "not off" to a user and to
@@ -28,7 +32,10 @@ case "${WARRANT_OFF:-}" in
   *) exit 0 ;;
 esac
 
-command -v python3 >/dev/null 2>&1 || exit 0
+command -v python3 >/dev/null 2>&1 || {
+  echo "warrant: refused — hunt-guard.sh requires python3, which is not on PATH; denying rather than guessing." >&2
+  exit 2
+}
 
 payload="$(cat)"
 
@@ -51,12 +58,17 @@ def allow():
     sys.exit(0)
 
 
+def deny_intake(msg):
+    sys.stderr.write("warrant: refused — " + msg + "\n")
+    sys.exit(2)
+
+
 try:
     event = json.loads(os.environ.get("WARRANT_PAYLOAD", ""))
 except ValueError:
-    allow()
+    deny_intake("the tool-call payload is not valid JSON; the gate cannot judge a call it cannot parse")
 if not isinstance(event, dict):
-    allow()
+    deny_intake("the tool-call payload is not a JSON object; the gate cannot judge a call it cannot parse")
 
 tool = event.get("tool_name") or ""
 if tool not in ("Agent", "Task", "Workflow"):

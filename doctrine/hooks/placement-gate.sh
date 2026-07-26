@@ -20,8 +20,13 @@
 # document: which bucket a document belongs in is left to the directive, since
 # a path cannot tell you that.
 #
-# Fails open. A missing python3, unreadable payload, or unexpected schema lets
-# the write through rather than blocking a session on the gate itself.
+# Fails closed. A missing python3 or a payload this gate cannot parse/
+# understand (unparseable JSON, non-dict event, non-dict tool_input, missing
+# path) is refused rather than silently let through — this gate cannot
+# distinguish a legitimate write from a hostile one it failed to read. Only
+# genuinely-determined out-of-scope writes (outside the project, symlink
+# resolves outside the project, not under docs/, a recognized bucket) still
+# allow.
 #
 # Kill switch:  export DOCTRINE_OFF=1
 # Escape hatch: export DOCTRINE_ALLOW="docs/package.json,docs/site"
@@ -36,7 +41,10 @@ case "${DOCTRINE_OFF:-}" in
   *) exit 0 ;;
 esac
 
-command -v python3 >/dev/null 2>&1 || exit 0
+command -v python3 >/dev/null 2>&1 || {
+  echo "doctrine: refused — placement-gate.sh requires python3, which is not on PATH; denying rather than guessing." >&2
+  exit 2
+}
 
 payload="$(cat)"
 
@@ -58,21 +66,26 @@ def allow():
     sys.exit(0)
 
 
+def deny(msg):
+    sys.stderr.write("doctrine: refused — " + msg + "\n")
+    sys.exit(2)
+
+
 try:
     event = json.loads(os.environ.get("DOCTRINE_PAYLOAD", ""))
 except ValueError:
-    allow()
+    deny("the tool-call payload is not valid JSON; the gate cannot judge a write it cannot parse")
 
 if not isinstance(event, dict):
-    allow()
+    deny("the tool-call payload is not a JSON object; the gate cannot judge a write it cannot parse")
 
 tool_input = event.get("tool_input")
 if not isinstance(tool_input, dict):
-    allow()
+    deny("tool_input is missing or not a JSON object; the gate cannot judge a write it cannot parse")
 
 path = tool_input.get("file_path") or tool_input.get("notebook_path")
 if not isinstance(path, str) or not path:
-    allow()
+    deny("no usable file_path/notebook_path in tool_input; the gate cannot judge a write it cannot identify")
 
 normalized = path.replace("\\", "/")
 
