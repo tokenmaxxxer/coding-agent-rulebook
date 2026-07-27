@@ -56,7 +56,7 @@ try:
     # `approved`, `Approved`, and `approved   # go` are the same intent; a value that
     # is none of the three known states is reported rather than read as "not approved".
     STATUS = re.compile(r"^status:\s*([A-Za-z]+)\s*(?:#.*)?$", re.M)
-    KNOWN_STATES = ("proposed", "approved", "landed")
+    KNOWN_STATES = ("proposed", "approved", "landed", "withdrawn", "rejected")
     # Same comment-tolerant shape as STATUS, parsing a record's declared `kind:`
     # instead of a proposal's `status:` — `kind: build-proposal  # re-scoped`
     # parses as `build-proposal`, per contract v2 section 2's rule that kind
@@ -230,11 +230,13 @@ try:
         if malformed:
             print(
                 "warrant: %s cannot be read — the frontmatter has no closing `---`, or its status is "
-                "not one of proposed/approved/landed. The gate is standing down until it is valid."
+                "not one of proposed/approved/landed/withdrawn/rejected. The gate is standing down "
+                "(allowing) until it is valid, rather than treating a malformed proposal as a reason "
+                "to deny every tool call for the rest of the session."
                 % ", ".join("docs/proposals/" + n for n in malformed),
                 file=sys.stderr,
             )
-            sys.exit(1)
+            allow()
         stand_down()
 
     name, block = approved[0]
