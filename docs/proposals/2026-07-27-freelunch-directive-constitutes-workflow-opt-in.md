@@ -1,5 +1,5 @@
 ---
-status: approved
+status: landed
 files:
   - freelunch/hooks/freelunch.sh
   - freelunch/.claude-plugin/plugin.json
