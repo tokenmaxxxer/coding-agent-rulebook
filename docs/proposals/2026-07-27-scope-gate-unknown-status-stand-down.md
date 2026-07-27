@@ -1,5 +1,5 @@
 ---
-status: approved
+status: landed
 files:
   - warrant/hooks/scope-gate.sh
   - warrant/hooks/run-gate-tests.sh
