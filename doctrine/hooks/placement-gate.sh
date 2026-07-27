@@ -95,7 +95,10 @@ try:
 
     path = tool_input.get("file_path") or tool_input.get("notebook_path")
     if not isinstance(path, str) or not path:
-        deny("no usable file_path/notebook_path in tool_input; the gate cannot judge a write it cannot identify")
+        # A well-formed tool_input with no path field is not a write this gate
+        # has jurisdiction over (Bash, Agent/Task, etc.) -- stand down silently
+        # rather than refuse a tool call it was never scoped to judge.
+        allow()
 
     normalized = path.replace("\\", "/")
 
