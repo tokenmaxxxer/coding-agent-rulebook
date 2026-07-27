@@ -189,7 +189,10 @@ expect_deny2 "(6) record-fields malformed JSON fails closed" "$RECORD_FIELDS_GAT
 expect_prelogic_abort_deny2() {
   # $1 = name, $2 = gate script path
   local name="$1" gate="$2" tmp out rc
-  tmp="$(mktemp -p "$WORKDIR" prelogic-XXXXXX.sh)"
+  # Trailing X's, no suffix: BSD mktemp (macOS, where these hooks run)
+  # substitutes only X's at the END of the template, so `prelogic-XXXXXX.sh`
+  # was taken literally and every call after the first collided.
+  tmp="$(mktemp "$WORKDIR/prelogic-XXXXXX")"
   awk '
     { print }
     /^trap __fc EXIT$/ && !done {

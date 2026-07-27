@@ -688,7 +688,12 @@ expect_deny2 "(40) hunt-guard malformed JSON fails closed" "$HUNT_GATE" "$root" 
 expect_prelogic_abort_deny2() {
   # $1 = name, $2 = gate script path
   local name="$1" gate="$2" tmp out rc
-  tmp="$(mktemp -p "$WORKDIR" prelogic-XXXXXX.sh)"
+  # Trailing X's, no suffix: BSD mktemp (macOS, where these hooks run)
+  # substitutes only X's at the END of the template. `prelogic-XXXXXX.sh`
+  # was taken literally, so every call after the first collided on one
+  # filename and mktemp failed — five of these six fail-closed cases had
+  # never actually run since they were written.
+  tmp="$(mktemp "$WORKDIR/prelogic-XXXXXX")"
   # Splice the abort snippet on the line right after `trap __fc EXIT`, i.e.
   # above every set/source/verdict statement, exercising the trap-at-top.
   awk '
@@ -899,6 +904,48 @@ else
   echo "FAIL: (54) malformed-only repo -- expected exit 0 with warning, got exit $rc. Output: $out"
   fail=$((fail+1))
 fi
+
+# =========================================================================
+# (55-58) path-ownership-gate.sh: nothing under another role's subject tree,
+# and the tokens directory above all. Measured 2026-07-27: the deny condition
+# was `"/" not in tail or tail.endswith(".md")`, which let every non-.md file
+# in a subdirectory through — including records/<subject>/tokens/<kind>.token,
+# so coding could Write its own human-approval token and clear contract §19's
+# scope gate by itself.
+# =========================================================================
+
+expect_allow0() {
+  # $1 name, $2 gate, $3 root, $4 payload
+  local name="$1" gate="$2" root="$3" payload="$4" out rc
+  out="$(CLAUDE_PROJECT_DIR="$root" WARRANT_OFF= bash "$gate" <<<"$payload" 2>&1)"
+  rc=$?
+  if [ "$rc" -eq 0 ]; then
+    echo "PASS: $name (exit 0 ALLOW)"
+    pass=$((pass+1))
+  else
+    echo "FAIL: $name -- expected exit 0 (ALLOW), got exit $rc. Output: $out"
+    fail=$((fail+1))
+  fi
+}
+
+root="$(new_root)"
+payload="$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s/docs/reports/records/subj/tokens/scope-proposed--scope-approved.token","content":"forged"}}' "$root")"
+expect_deny2 "(55) path-ownership refuses a forged approval token" "$PATH_OWNERSHIP_GATE" "$root" "$payload"
+
+root="$(new_root)"
+payload="$(printf '{"tool_name":"Bash","tool_input":{"command":"echo forged > %s/docs/reports/records/subj/tokens/k.token"}}' "$root")"
+expect_deny2 "(56) path-ownership refuses a token written via Bash" "$PATH_OWNERSHIP_GATE" "$root" "$payload"
+
+# A non-.md file in another role's subdirectory: evidence, not a token, but
+# still not coding's to write. The old condition allowed it.
+root="$(new_root)"
+payload="$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s/docs/reports/records/subj/qa/evidence/run.log","content":"x"}}' "$root")"
+expect_deny2 "(57) path-ownership refuses another role's evidence file" "$PATH_OWNERSHIP_GATE" "$root" "$payload"
+
+# coding's own tree stays writable — the fix must not swing the other way.
+root="$(new_root)"
+payload="$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s/docs/reports/records/subj/coding/notes/x.log","content":"x"}}' "$root")"
+expect_allow0 "(58) path-ownership still allows coding's own subtree" "$PATH_OWNERSHIP_GATE" "$root" "$payload"
 
 echo ""
 echo "=== tally: ${pass} passed, ${fail} failed (of $((pass+fail)) cases) ==="
