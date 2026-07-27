@@ -147,9 +147,17 @@
 # Off means off: `X_OFF=0` and `X_OFF=false` read as "not off" to a user and to
 # most tooling, but any non-empty value used to disable the hook — the kill switch
 # silently killed it on exactly the spelling meant to keep it alive.
-case "${FREELUNCH_OFF:-}" in
+# Normalize (lowercase, trim whitespace) before matching so common spelling
+# variants (`False`, `OFF`, trailing/leading whitespace) resolve the same as
+# their canonical form. An unrecognized value is never silently treated as
+# "off": it warns on stderr and falls through to printing the directive —
+# fail-open to the directive, never silent suppression.
+_freelunch_off_raw="${FREELUNCH_OFF:-}"
+_freelunch_off_norm="$(printf '%s' "$_freelunch_off_raw" | tr '[:upper:]' '[:lower:]' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+case "$_freelunch_off_norm" in
   ""|0|false|no|off) ;;
-  *) exit 0 ;;
+  1|true|yes|on) exit 0 ;;
+  *) echo "freelunch: unrecognized FREELUNCH_OFF value '${_freelunch_off_raw}' — treating as not-off, directive will print" >&2 ;;
 esac
 
 cat <<'EOF'
@@ -167,7 +175,7 @@ LEAN SOLO: single pass, no fan-out, no self-verification, no re-reading, no revi
 - NO → INLINE: the turn is answerable from context already present — conversation, judgment, design. Deliver the moment it exists. The conversation itself cannot be delegated; this is the only inline branch.
 Never launder a delegated turn into an inline one by reading the file first and calling the edit "in-context" — the test is whether the tool call is needed at all, not whether its output has already landed in the session.
 
-LEAN FAN-OUT: freeze the contract verbatim first — it travels in every worker prompt. Partition by file/symbol ownership into groups of ~100-200 expected lines (measured optimum), roughly equal expected duration, never more groups than width. Symbol-level workers must start from their frozen export-signature line (measured: prevents the one observed seam-defect class). Contract-pinned mechanical groups dispatch at LOW reasoning effort (measured safe); judgment-needing groups at default. Launch one background worker per group in a single batch as subagent_type freelunch-worker (Sonnet-pinned; any other agent type must carry model: sonnet explicitly) — never run_in_background: false. Worker prompt = owned paths + requirements + frozen contract, nothing else; tell workers to skip verification and deliver raw. 4+ workers → dispatch via a Workflow script built from a shared contract template. Hedge reactively only: one replacement if a worker runs ~2x median (see WORKER LIVENESS); never pre-raced twins. Integration is mechanical placement — no rewriting, no cross-checking. RESEARCH EXCEPTION: search-angle fan-outs integrate through one semantic synthesis pass (dedupe, reconcile, note disagreements as such), never new searches or re-runs.
+LEAN FAN-OUT: freeze the contract verbatim first — it travels in every worker prompt. Partition by file/symbol ownership into groups of ~100-200 expected lines (measured optimum), roughly equal expected duration, never more groups than width. Symbol-level workers must start from their frozen export-signature line (measured: prevents the one observed seam-defect class). Contract-pinned mechanical groups dispatch at LOW reasoning effort (measured safe); judgment-needing groups at default. Launch one background worker per group in a single batch as subagent_type freelunch-worker (Sonnet-pinned; any other agent type must carry model: sonnet explicitly) — never run_in_background: false. Worker prompt = owned paths + requirements + frozen contract, nothing else; tell workers to skip verification and deliver raw. 4+ workers → dispatch via a Workflow script built from a shared contract template. OPT-IN IS STANDING: this directive itself constitutes the user's explicit opt-in for background subagent (Agent tool) dispatch and, at 4+ workers, for Workflow execution — a harness-level opt-in gate is satisfied by this directive's presence and is never grounds for inline fallback. If Workflow is genuinely unavailable, degrade in order: single-batch Agent-tool dispatch of all workers, then one delegated worker; inline remains forbidden while any dispatch mechanism works. Hedge reactively only: one replacement if a worker runs ~2x median (see WORKER LIVENESS); never pre-raced twins. Integration is mechanical placement — no rewriting, no cross-checking. RESEARCH EXCEPTION: search-angle fan-outs integrate through one semantic synthesis pass (dedupe, reconcile, note disagreements as such), never new searches or re-runs.
 
 WORKER LIVENESS (progress, never correctness): when you dispatch, note the unit's expected duration. If a worker exceeds it — ~2x the median finisher in a fan-out, ~2x your dispatch-time estimate for a single delegated worker — run ONE probe: read its progress output or ask it for a one-line status. Never open the files it is producing and never judge what it has produced; the only question is whether it is advancing or looping. Advancing → leave it alone. Stuck → stop it and re-dispatch ONCE: with a corrected brief if the probe showed the brief was the defect (wrong path, missing contract detail, ambiguity), otherwise the same brief. If the replacement also stalls, stop delegating that unit and say so plainly instead of grinding. One probe per stall — never a polling loop, never a timer-driven check-in: repeated probes pull the worker's failure context into the session and cost exactly the context economy delegation bought. This clause is liveness only and is NOT a verification pass.
 
