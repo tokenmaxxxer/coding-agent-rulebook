@@ -250,6 +250,33 @@ root="$(mktemp -d -p "$WORKDIR")"
 payload='{"tool_name":"Write","tool_input":{"content":"x\n"}}'
 expect_allow "(12) placement-gate Write with no file_path now allowed (was denied)" "$root" "$payload"
 
+# =========================================================================
+# Cases 13-14: MultiEdit tool_input carries the path in the same
+# `file_path` key as Edit/Write (record-fields-gate.sh:106 treats MultiEdit
+# as a write tool the same way). placement-gate.sh does not branch on
+# tool_name, only on tool_input.file_path, so MultiEdit must be judged
+# identically to Write/Edit -- confirms the matcher revert to `.*` in
+# hooks.json (b0f7a661's enumerated-matcher gap, and the MultiEdit omission
+# from it) is covered by the script-level check, not by hooks.json alone.
+# =========================================================================
+
+# --- (13) MultiEdit writing outside the six buckets -> DENY ---------------
+root="$(mktemp -d -p "$WORKDIR")"
+payload=$(cat <<JSON
+{"tool_name":"MultiEdit","tool_input":{"file_path":"$root/docs/not-a-bucket/z.md","edits":[{"old_string":"a","new_string":"b"}]}}
+JSON
+)
+expect_deny "(13) placement-gate MultiEdit outside the six buckets refused" "$root" "$payload"
+
+# --- (14) MultiEdit writing inside a recognized bucket -> ALLOW -----------
+root="$(mktemp -d -p "$WORKDIR")"
+mkdir -p "$root/docs/decisions"
+payload=$(cat <<JSON
+{"tool_name":"MultiEdit","tool_input":{"file_path":"$root/docs/decisions/z.md","edits":[{"old_string":"a","new_string":"b"}]}}
+JSON
+)
+expect_allow "(14) placement-gate MultiEdit inside a recognized bucket allowed" "$root" "$payload"
+
 echo ""
 echo "=== tally: ${pass} passed, ${fail} failed (of $((pass+fail)) cases) ==="
 if [ "$fail" -ne 0 ]; then

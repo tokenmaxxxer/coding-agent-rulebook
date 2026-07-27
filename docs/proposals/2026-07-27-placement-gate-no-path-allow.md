@@ -106,3 +106,13 @@ a write, not my business, allow" — not as an unparseable payload to refuse.
 - A `Write`/`Edit`/`NotebookEdit` call with a `file_path` landing under
   `docs/` outside the six buckets is still refused — misplaced document
   writes remain caught.
+
+## What did not work
+
+Narrowing the `hooks.json` matcher from `.*` to `Write|Edit|NotebookEdit` was
+built, then reverted: it re-created the enumerated-matcher gap this repo
+reverted in `b0f7a661`, and it omitted `MultiEdit` — which `record-fields-
+gate.sh:106` already treats as a write tool — so a `MultiEdit` misplacing a
+doc under `docs/` would have bypassed placement-gate entirely; the
+script-level no-path `allow()` fix alone (matcher left at `.*`) is the sole
+mechanism now in force.
