@@ -13,7 +13,18 @@
 # background dispatch + completion notification is semantically equivalent
 # to waiting synchronously. Kill switch: FREELUNCH_OFF=1 (no log, no deny).
 
-case "${FREELUNCH_OFF:-}" in ""|0|false|no|off) ;; *) exit 0 ;; esac
+# Normalize (lowercase, trim whitespace) before matching so common spelling
+# variants (`False`, `OFF`, trailing/leading whitespace) resolve the same as
+# their canonical form. An unrecognized value is never silently treated as
+# "off": it warns on stderr and falls through to normal operation (logging
+# continues) — fail-open to logging, never silent suppression.
+_freelunch_off_raw="${FREELUNCH_OFF:-}"
+_freelunch_off_norm="$(printf '%s' "$_freelunch_off_raw" | tr '[:upper:]' '[:lower:]' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+case "$_freelunch_off_norm" in
+  ""|0|false|no|off) ;;
+  1|true|yes|on) exit 0 ;;
+  *) echo "freelunch: unrecognized FREELUNCH_OFF value '${_freelunch_off_raw}' — treating as not-off, logging will continue" >&2 ;;
+esac
 LOG="${FREELUNCH_OBSERVE_LOG:-$HOME/.claude/freelunch-observe.jsonl}"
 
 # Capture the hook payload BEFORE anything else touches stdin.
