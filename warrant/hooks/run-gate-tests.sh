@@ -721,6 +721,107 @@ expect_prelogic_abort_deny2 "(44) build-scope pre-logic abort fails closed" "$BU
 expect_prelogic_abort_deny2 "(45) coding-progress pre-logic abort fails closed" "$CODING_PROGRESS_GATE"
 expect_prelogic_abort_deny2 "(46) handbook-trigger pre-logic abort fails closed" "$HANDBOOK_GATE"
 
+# =========================================================================
+# Cases 47-51: unknown/malformed proposal status degrades to a warning, not
+# a self-lock (contract: docs/proposals/2026-07-27-scope-gate-unknown-
+# status-stand-down.md). The stand-down branch used to exit 1, which the
+# fail-closed trap (__fc) reclassifies as exit 2 (DENY) for every tool call
+# in the session -- including Read/Bash needed to fix the very proposal
+# that triggered it. `withdrawn` and `rejected` join the known-state
+# vocabulary (treated exactly like `landed`: inactive, gate stands down);
+# any other unrecognized status, or a frontmatter with no closing `---`,
+# now allows (exit 0) with a stderr warning instead of exit 1/2.
+# =========================================================================
+
+write_status_proposal() {
+  # write_status_proposal <root> <slug> <status>
+  local root="$1" slug="$2" status="$3"
+  mkdir -p "$root/docs/proposals"
+  {
+    printf -- '---\n'
+    printf 'status: %s\n' "$status"
+    printf -- '---\n'
+    printf '# build proposal\n'
+  } > "$root/docs/proposals/${slug}.md"
+}
+
+# Case 47: status: withdrawn -> gate allows, treated as inactive (same as
+# landed): a write outside any write set (there is no approved unit) is
+# still allowed because nothing is enforceable.
+root="$(new_root)"
+mkdir -p "$root/other"
+write_status_proposal "$root" "case47" "withdrawn"
+payload=$(cat <<JSON
+{"tool_name":"Write","tool_input":{"file_path":"$root/other/anything.py","content":"x = 1\n"}}
+JSON
+)
+expect_allow "(47) status: withdrawn treated as inactive, gate allows" "$root" "$payload"
+
+# Case 48: status: rejected -> same as (47).
+root="$(new_root)"
+mkdir -p "$root/other"
+write_status_proposal "$root" "case48" "rejected"
+payload=$(cat <<JSON
+{"tool_name":"Write","tool_input":{"file_path":"$root/other/anything.py","content":"x = 1\n"}}
+JSON
+)
+expect_allow "(48) status: rejected treated as inactive, gate allows" "$root" "$payload"
+
+# Case 49: unknown status (e.g. status: banana) -> exit 0 with a warning on
+# stderr, not exit 1 (which the __fc trap would reclassify into a global
+# exit 2 deny).
+root="$(new_root)"
+mkdir -p "$root/other"
+write_status_proposal "$root" "case49" "banana"
+payload=$(cat <<JSON
+{"tool_name":"Write","tool_input":{"file_path":"$root/other/anything.py","content":"x = 1\n"}}
+JSON
+)
+out="$(run_gate "$root" "$payload" 2>&1)"
+rc=$?
+if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -qi "cannot be read"; then
+  echo "PASS: (49) unknown status 'banana' degrades to warning, exit 0"
+  pass=$((pass+1))
+else
+  echo "FAIL: (49) unknown status 'banana' -- expected exit 0 with warning, got exit $rc. Output: $out"
+  fail=$((fail+1))
+fi
+
+# Case 50: frontmatter missing its closing `---` -> exit 0 with warning on
+# stderr, not a self-locking deny.
+root="$(new_root)"
+mkdir -p "$root/docs/proposals" "$root/other"
+{
+  printf -- '---\n'
+  printf 'status: proposed\n'
+  printf '# no closing fence below\n'
+} > "$root/docs/proposals/case50.md"
+payload=$(cat <<JSON
+{"tool_name":"Write","tool_input":{"file_path":"$root/other/anything.py","content":"x = 1\n"}}
+JSON
+)
+out="$(run_gate "$root" "$payload" 2>&1)"
+rc=$?
+if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -qi "cannot be read"; then
+  echo "PASS: (50) missing closing --- degrades to warning, exit 0"
+  pass=$((pass+1))
+else
+  echo "FAIL: (50) missing closing --- -- expected exit 0 with warning, got exit $rc. Output: $out"
+  fail=$((fail+1))
+fi
+
+# Case 51: existing behavior unchanged -- with a well-formed approved
+# proposal in place, an out-of-scope write is still denied (proves cases
+# 47-50 did not weaken the approved write-set enforcement path).
+root="$(new_root)"
+mkdir -p "$root/src" "$root/other"
+proposal="$(write_approved_proposal "$root" "case51" '  - src')"
+payload=$(cat <<JSON
+{"tool_name":"Write","tool_input":{"file_path":"$root/other/escape.py","content":"x = 1\n"}}
+JSON
+)
+expect_deny "(51) approved write-set enforcement still denies out-of-set edits" "$root" "$payload"
+
 echo ""
 echo "=== tally: ${pass} passed, ${fail} failed (of $((pass+fail)) cases) ==="
 if [ "$fail" -ne 0 ]; then
