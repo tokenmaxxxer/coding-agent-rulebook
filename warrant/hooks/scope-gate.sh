@@ -164,10 +164,11 @@ try:
         nested = nested_units()
         if nested:
             print(
-                "warrant: %s holds proposals, but this gate reads the repository root only "
-                "(docs/proposals). Nothing is being enforced for those units."
+                "warrant: refused — %s holds proposals, but this gate reads the repository root only "
+                "(docs/proposals). Nothing is being enforced for those units, so a write cannot be "
+                "judged safe by absence of an in-flight unit here."
                 % ", ".join(nested), file=sys.stderr)
-            sys.exit(1)
+            sys.exit(2)
         allow()
 
 
@@ -222,22 +223,42 @@ try:
     if len(approved) != 1:
         if len(approved) > 1:
             print(
-                "warrant: %s are all marked approved. One unit is enforceable at a time, so the write "
-                "set and trailer rules are OFF until exactly one is approved — set the finished ones to "
-                "`landed`." % ", ".join("docs/proposals/" + n for n, _ in approved),
+                "warrant: refused — %s are all marked approved. One unit is enforceable at a time; "
+                "the write set and trailer rules cannot be scoped unambiguously with more than one "
+                "approved unit in flight — set the finished ones to `landed`."
+                % ", ".join("docs/proposals/" + n for n, _ in approved),
                 file=sys.stderr)
-            sys.exit(1)
+            sys.exit(2)
         if malformed:
+            # A proposal whose frontmatter will not parse, or whose status is
+            # unrecognized, is skipped -- not treated as a reason to deny
+            # every tool call for the rest of the session -- but it does NOT
+            # get to short-circuit the checks that still apply to the rest of
+            # the repository (nested_units() reach, and, further up the call
+            # stack, write-set enforcement over any remaining valid unit).
+            # Falling through to stand_down() instead of allow()-ing directly
+            # here is what keeps a garbage status: value in one file from
+            # silently disabling the nested-units reach check for everything
+            # else (docs/proposals/2026-07-27-scope-gate-malformed-skip-and-deny-codes.md).
             print(
                 "warrant: %s cannot be read — the frontmatter has no closing `---`, or its status is "
-                "not one of proposed/approved/landed/withdrawn/rejected. The gate is standing down "
-                "(allowing) until it is valid, rather than treating a malformed proposal as a reason "
-                "to deny every tool call for the rest of the session."
-                % ", ".join("docs/proposals/" + n for n in malformed),
+                "not one of proposed/approved/landed/withdrawn/rejected. Skipping %s; this does not by "
+                "itself stand down enforcement for the rest of the repository."
+                % (", ".join("docs/proposals/" + n for n in malformed),
+                   "it" if len(malformed) == 1 else "them"),
                 file=sys.stderr,
             )
-            allow()
         stand_down()
+    elif malformed:
+        # Exactly one valid approved unit, but a sibling proposal file is
+        # malformed/unrecognized-status: warn once and continue — the valid
+        # unit's write-set enforcement below is unaffected.
+        print(
+            "warrant: %s cannot be read — skipping %s; the approved unit below is still enforced."
+            % (", ".join("docs/proposals/" + n for n in malformed),
+               "it" if len(malformed) == 1 else "them"),
+            file=sys.stderr,
+        )
 
     name, block = approved[0]
     proposal_path = "docs/proposals/" + name

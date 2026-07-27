@@ -822,6 +822,84 @@ JSON
 )
 expect_deny "(51) approved write-set enforcement still denies out-of-set edits" "$root" "$payload"
 
+# =========================================================================
+# Cases 52-54: docs/proposals/2026-07-27-scope-gate-malformed-skip-and-deny-
+# codes.md -- a malformed proposal must not short-circuit the nested_units()
+# reach check (D1), and the multiple-approved / nested-units policy denials
+# must be direct exit 2s, not sys.exit(1) reclassified by the __fc trap (D2).
+# =========================================================================
+
+# Case 52 (t1): a malformed proposal AND a nested (out-of-reach) proposals
+# unit both present -> the gate must still deny (exit 2), proving the
+# malformed proposal no longer bypasses the nested_units() check via an
+# early allow().
+root="$(new_root)"
+write_status_proposal "$root" "case52" "banana"
+mkdir -p "$root/packages/foo/docs/proposals"
+{
+  printf -- '---\n'
+  printf 'status: proposed\n'
+  printf -- '---\n'
+  printf '# nested unit\n'
+} > "$root/packages/foo/docs/proposals/other.md"
+payload=$(cat <<JSON
+{"tool_name":"Write","tool_input":{"file_path":"$root/anything-not-in-write-set.txt","content":"x = 1\n"}}
+JSON
+)
+expect_deny "(52) malformed proposal + nested unit -> still denies (exit 2), no bypass" "$root" "$payload"
+out="$(run_gate "$root" "$payload" 2>&1)"
+rc=$?
+if [ "$rc" -eq 2 ]; then
+  echo "PASS: (52b) malformed proposal + nested unit exits exactly 2"
+  pass=$((pass+1))
+else
+  echo "FAIL: (52b) malformed proposal + nested unit -- expected exit 2, got exit $rc. Output: $out"
+  fail=$((fail+1))
+fi
+
+# Case 53 (t2): two proposals both status: approved -> exit 2 directly (a
+# proper policy deny), never exit 1 (which the __fc trap would still
+# reclassify to 2, but via the fail-closed path rather than an intentional
+# verdict -- this pins the intentional exit 2 as regression coverage).
+root="$(new_root)"
+mkdir -p "$root/src"
+write_approved_proposal "$root" "case53a" '  - src' > /dev/null
+write_approved_proposal "$root" "case53b" '  - src' > /dev/null
+payload=$(cat <<JSON
+{"tool_name":"Read","tool_input":{"file_path":"$root/src/anything.py"}}
+JSON
+)
+out="$(run_gate "$root" "$payload" 2>&1)"
+rc=$?
+if [ "$rc" -eq 2 ] && printf '%s' "$out" | grep -qi "all marked approved"; then
+  echo "PASS: (53) two approved proposals -> exit 2 with clear message"
+  pass=$((pass+1))
+else
+  echo "FAIL: (53) two approved proposals -- expected exit 2 with 'all marked approved' message, got exit $rc. Output: $out"
+  fail=$((fail+1))
+fi
+
+# Case 54 (t3): malformed-only repo (no approved unit, no nested unit) ->
+# gate still allows with a warning -- the 0.4.2 stand-down behavior for the
+# plain malformed case is preserved by falling through stand_down() with
+# nested_units() empty.
+root="$(new_root)"
+mkdir -p "$root/other"
+write_status_proposal "$root" "case54" "banana"
+payload=$(cat <<JSON
+{"tool_name":"Write","tool_input":{"file_path":"$root/other/anything.py","content":"x = 1\n"}}
+JSON
+)
+out="$(run_gate "$root" "$payload" 2>&1)"
+rc=$?
+if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -qi "cannot be read"; then
+  echo "PASS: (54) malformed-only repo (no nested unit) -> allow with warning"
+  pass=$((pass+1))
+else
+  echo "FAIL: (54) malformed-only repo -- expected exit 0 with warning, got exit $rc. Output: $out"
+  fail=$((fail+1))
+fi
+
 echo ""
 echo "=== tally: ${pass} passed, ${fail} failed (of $((pass+fail)) cases) ==="
 if [ "$fail" -ne 0 ]; then
