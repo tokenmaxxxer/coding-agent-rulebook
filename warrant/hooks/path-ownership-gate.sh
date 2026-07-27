@@ -109,13 +109,23 @@ try:
         subject, tail = m.group(1), m.group(2)
         if tail == OWN or tail.startswith("coding/"):
             return
-        if "/" not in tail or tail.endswith(".md"):
-            deny(
-                "'%s' is owned by another role per contract §11 (coding owns only "
-                "docs/reports/records/%s/coding.md under this subject), not coding. "
-                "Report the conflict; do not overwrite or merge into another role's record."
-                % (rel, subject)
-            )
+        # Everything else under this subject belongs to another role. Deny it
+        # ALL — the previous condition ("/" not in tail or tail.endswith(".md"))
+        # let every non-.md file in a subdirectory through, and measured
+        # 2026-07-27 that included records/<subject>/tokens/<kind>.token: coding
+        # could Write its own human-approval token and clear contract §19's
+        # scope gate by itself. qa's gate already refused everything not
+        # qa-owned; this adopts that shape.
+        why = ("'%s' is owned by another role per contract §11 (coding owns only "
+               "docs/reports/records/%s/coding.md and coding/** under this "
+               "subject), not coding. Report the conflict; do not overwrite or "
+               "merge into another role's record." % (rel, subject))
+        if tail.split("/")[0] == "tokens" or tail.endswith(".token"):
+            why = ("'%s' is a human-approval token. Tokens are minted from the "
+                   "human's own turn or by the unattended judge and consumed by "
+                   "gates — a token written by a tool is a forged approval "
+                   "(contract §19)." % rel)
+        deny(why)
 
     LIT = re.compile(r'^[A-Za-z0-9_./+=,@%:-]+$')
     def is_literal(t):
