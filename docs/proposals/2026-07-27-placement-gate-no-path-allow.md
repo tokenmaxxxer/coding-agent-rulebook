@@ -1,5 +1,5 @@
 ---
-status: approved
+status: landed
 files:
   - doctrine/hooks/placement-gate.sh
   - doctrine/hooks/hooks.json
