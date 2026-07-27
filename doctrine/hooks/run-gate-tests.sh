@@ -216,6 +216,67 @@ expect_prelogic_abort_deny2() {
 expect_prelogic_abort_deny2 "(7) placement-gate pre-logic abort fails closed" "$GATE"
 expect_prelogic_abort_deny2 "(8) record-fields pre-logic abort fails closed" "$RECORD_FIELDS_GATE"
 
+# =========================================================================
+# Cases 9-12: no-path-allow (contract:
+# docs/proposals/2026-07-27-placement-gate-no-path-allow.md). A well-formed
+# tool_input with no file_path/notebook_path is not a write this gate has
+# jurisdiction over -- it must ALLOW (exit 0), not refuse.
+# =========================================================================
+
+# --- (9) Bash tool_input with no file_path -> ALLOW -----------------------
+root="$(mktemp -d -p "$WORKDIR")"
+payload='{"tool_name":"Bash","tool_input":{"command":"git log"}}'
+expect_allow "(9) placement-gate Bash tool call with no file_path allowed" "$root" "$payload"
+
+# --- (10) Agent/Task dispatch with no file_path -> ALLOW -------------------
+root="$(mktemp -d -p "$WORKDIR")"
+payload='{"tool_name":"Task","tool_input":{"description":"dispatch","prompt":"do the thing"}}'
+expect_allow "(10) placement-gate Agent/Task dispatch with no file_path allowed" "$root" "$payload"
+
+# --- (11) Write with file_path under docs/ outside the six buckets is still
+# refused -- unchanged behavior when a path IS present. ---------------------
+root="$(mktemp -d -p "$WORKDIR")"
+payload=$(cat <<JSON
+{"tool_name":"Write","tool_input":{"file_path":"$root/docs/not-a-bucket/y.md","content":"x\n"}}
+JSON
+)
+expect_deny "(11) placement-gate Write outside the six buckets still refused" "$root" "$payload"
+
+# --- (12) Write tool call with no file_path at all (malformed tool call) ->
+# now ALLOWS rather than denies -- intentional behavior change: a missing
+# path means the gate has no jurisdiction, regardless of tool_name.
+# ----------------------------------------------------------------------------
+root="$(mktemp -d -p "$WORKDIR")"
+payload='{"tool_name":"Write","tool_input":{"content":"x\n"}}'
+expect_allow "(12) placement-gate Write with no file_path now allowed (was denied)" "$root" "$payload"
+
+# =========================================================================
+# Cases 13-14: MultiEdit tool_input carries the path in the same
+# `file_path` key as Edit/Write (record-fields-gate.sh:106 treats MultiEdit
+# as a write tool the same way). placement-gate.sh does not branch on
+# tool_name, only on tool_input.file_path, so MultiEdit must be judged
+# identically to Write/Edit -- confirms the matcher revert to `.*` in
+# hooks.json (b0f7a661's enumerated-matcher gap, and the MultiEdit omission
+# from it) is covered by the script-level check, not by hooks.json alone.
+# =========================================================================
+
+# --- (13) MultiEdit writing outside the six buckets -> DENY ---------------
+root="$(mktemp -d -p "$WORKDIR")"
+payload=$(cat <<JSON
+{"tool_name":"MultiEdit","tool_input":{"file_path":"$root/docs/not-a-bucket/z.md","edits":[{"old_string":"a","new_string":"b"}]}}
+JSON
+)
+expect_deny "(13) placement-gate MultiEdit outside the six buckets refused" "$root" "$payload"
+
+# --- (14) MultiEdit writing inside a recognized bucket -> ALLOW -----------
+root="$(mktemp -d -p "$WORKDIR")"
+mkdir -p "$root/docs/decisions"
+payload=$(cat <<JSON
+{"tool_name":"MultiEdit","tool_input":{"file_path":"$root/docs/decisions/z.md","edits":[{"old_string":"a","new_string":"b"}]}}
+JSON
+)
+expect_allow "(14) placement-gate MultiEdit inside a recognized bucket allowed" "$root" "$payload"
+
 echo ""
 echo "=== tally: ${pass} passed, ${fail} failed (of $((pass+fail)) cases) ==="
 if [ "$fail" -ne 0 ]; then
