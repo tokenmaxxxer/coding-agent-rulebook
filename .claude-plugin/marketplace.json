@@ -5,14 +5,9 @@
   },
   "plugins": [
     {
-      "name": "freelunch",
-      "source": "./freelunch",
-      "description": "Speed-first plugin that forces every task onto concurrent background Sonnet agents with zero idle time"
-    },
-    {
-      "name": "terse",
-      "source": "./terse",
-      "description": "Output-token compression scoped to conversational prose — never worker prompts, contracts, code, or safety-critical text. Three levels via /terse."
+      "name": "coding",
+      "source": "./coding",
+      "description": "The coding role on contract v3: the generation layer — approved scope to working code, verification left to qa/review/verify and the human's PR review. Write-set-frozen proposals, the scope-exceeded stop rule, honest claims (no-mock), '## What did not work' at the moment of failure, the doctrine placement ladder, s15 finding-resolution enforcement, and the rotating warrant-hunter. Companion plugins in this marketplace: blueprint, no-mock, no-footgun."
     },
     {
       "name": "blueprint",
@@ -25,34 +20,9 @@
       "description": "Steers deliverables toward production-runnable structure at generation time — real persistence, real integration seams, no silent mocks. Pure direction, no verification machinery."
     },
     {
-      "name": "scout",
-      "source": "./scout",
-      "description": "Pre-build reconnaissance: identify best-in-class exemplars and the customer expectation baseline (Camp benchmarking + Kano + saturation stop rule), compress into a scout brief that steers the build. Bounded and judgment-gated — never a research report, never post-build comparison."
-    },
-    {
       "name": "no-footgun",
       "source": "./no-footgun",
       "description": "Direction-only security steering: names the threat patterns for the surface being built so the secure pattern is chosen at write time — surface-gated, cascading custom rules, zero review passes or scans."
-    },
-    {
-      "name": "doctrine",
-      "source": "./doctrine",
-      "description": "Documentation placement doctrine: six lifetime-based buckets under docs/, created on session start, a directive that classifies at write time and records decisions/measurements as they happen, and a PreToolUse gate refusing writes under docs/ outside them."
-    },
-    {
-      "name": "warrant",
-      "source": "./warrant",
-      "description": "Work-unit protocol: one approval gate at the front, then uninterrupted execution. A proposal states the request, the constraints, and the write set; approval freezes it; a PreToolUse gate refuses edits outside it and commits without the Proposal: trailer; SessionStart rebuilds state from the repository."
-    },
-    {
-      "name": "dispatch",
-      "source": "./dispatch",
-      "description": "Chat-to-git record-keeping discipline: when you work through chat, the conversation becomes the durable git record — a requirement becomes an issue, the work a pull request that Closes it, feedback becomes PR comments — and a PR merges only on an explicit, recorded user approval. Direction only, no gates, so a person or agent with no memory of the session can reconstruct intent, work, and rationale from git alone."
-    },
-    {
-      "name": "coding-agent-env",
-      "source": "./coding-agent-env",
-      "description": "One-install environment bundle: installs the whole tokenmaxxxer steering stack via dependencies."
     }
   ]
 }

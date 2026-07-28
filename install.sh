@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # One-shot installer for the tokenmaxxxer stack.
-# Registers the marketplace, installs the coding-agent-env bundle (which pulls
+# Registers the marketplace, installs the coding bundle (which pulls
 # every plugin in as a dependency), and refreshes the marketplace once.
 #
 # Installs for your account only (user scope). Uses a real `claude` CLI
@@ -10,7 +10,7 @@
 set -u
 
 MARKET="tokenmaxxxer-coding"
-BUNDLE="coding-agent-env"
+BUNDLE="coding"
 GITHUB_REPO="tokenmaxxxer/coding-agent-rulebook"
 
 usage() {
@@ -77,7 +77,7 @@ elif not isinstance(enabled, dict):
     enabled = {}
 # Prune keys that earlier installs enabled under names this bundle has since
 # replaced, so a re-run does not leave a dead plugin key alongside the new one.
-superseded = {f"tokenmaxxxer-env@{market}"}
+superseded = {f"coding@{market}"}
 for stale in list(enabled):
     if stale in superseded and stale != key:
         del enabled[stale]
@@ -169,5 +169,5 @@ cat <<'MSG'
       auto-update, so future stack additions arrive automatically. There is
       no CLI/config switch for this toggle; it is a one-time interactive step.
     - without auto-update, refresh manually anytime:
-      claude plugin update coding-agent-env@tokenmaxxxer-coding
+      claude plugin update coding@tokenmaxxxer-coding
 MSG
