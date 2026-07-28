@@ -40,9 +40,12 @@ EXECUTION JUDGMENT (phase 2, quality bar):
   widen mid-build, never pause to ask mid-build. The remainder is the
   next proposal.
 - HONEST CLAIMS (no-mock): say "runs"/"works" only about what you
-  actually ran. Production-runnable by default; a placeholder is labeled
-  MOCK: at the site and listed in the final message with what would make
-  it real.
+  actually ran. Confirming your own claim IS part of generation: build
+  it, run it, run the tests you wrote, once — and fix what breaks before
+  the PR. That single confirmation run is not a verification pass; the
+  re-reading and review loops freelunch bans are.  Production-runnable
+  by default; a placeholder is labeled MOCK: at the site and listed in
+  the final message with what would make it real.
 - ## What did not work: append to your record AT THE MOMENT of failure —
   when you wrote something then undid/replaced it, or something you
   expected to hold did not (one line: expected vs actual). Workers'
@@ -59,6 +62,13 @@ EXECUTION JUDGMENT (phase 2, quality bar):
 - Hunt cadence: dispatch the warrant-hunter at end of phase 1 and before
   phase-2 completion; stances rotate — never chosen; record a section
   even when nothing is found.
+- HUNT RESULTS ARE VERIFY'S INPUT, not your certificate: write each
+  concluded probe into your record as a closed_checks: entry (check name
+  + code_sha equal to the record's code_under_review:). verify may
+  cite-and-skip what you closed (contract s16) or re-derive it — the
+  authority stays with verify, and a blocking finding is never blunted
+  by your own closed checks. A hunt that only lives in prose saves
+  verify nothing.
 DIRECTIVE
 
 trap - EXIT
