@@ -1,98 +1,63 @@
 # tokenmaxxxer / coding-agent-rulebook
 
-A Claude Code plugin marketplace by Jung Jiwon & Lee Jongkwan: a steering stack that makes coding agents faster and cheaper **without lowering the deliverable bar**. Every plugin ships with the benchmark numbers that justify its rules — policies that lose their ablation get removed, not shipped.
+The `coding` role on contract v3. A coding session is spawned with two
+plugin sets installed: this marketplace's plugins (`coding`, plus the
+steering trio `blueprint`, `no-mock`, `no-footgun`), and the
+[tokenmaxxxer-core](https://github.com/tokenmaxxxer/tokenmaxxxer-core)
+plugins (`core`, `terse`, `freelunch`, `scout`). Core owns the interaction
+protocol — issue in, two-phase PR out (research/survey/proposal → human
+review Approve → execution), branch `issue-<n>/coding`, record at
+`docs/issue-<n>/reports/coding.md`.
 
-The stack's thesis: **no verification anywhere.** Every plugin steers *before* generation — what the field expects, what structure fits, how real it must be, how fast it gets built, how tersely it gets reported. Nothing inspects after. That is what keeps the savings free.
+The stack's thesis is unchanged: **the generation layer generates;
+verification lives elsewhere** — with qa, review, verify, and the human's
+PR review. terse, freelunch, and scout were promoted to the core
+marketplace (they are role-agnostic); dispatch retired (contract v3 IS
+dispatch, mechanized); warrant's proposal-freeze/approval machinery
+retired (core's approval-gate owns the human gate); doctrine's placement
+gates retired (core's board-gate R1 owns layout). The full position paper
+remains at [docs/reports/generation-is-all-you-need.md](docs/reports/generation-is-all-you-need.md).
 
-## Why steer, not verify
+## What is here
 
-Verification is the work of closing the gap between an artifact and the *user's oracle* — the standard, usually unstated and often shifting, by which the result will be judged. That oracle moves between turns and frequently sits outside the model's pretrained distribution, so a generating turn cannot reconstruct it. Asking a model to check its own output against an oracle it does not hold is neutral at best, and in the reasoning literature it tends to *degrade* the result — the fused generate–check–repair turn spends a large fixed cost adjudicating a target it can't know, and stalls below it.
+    coding/hooks/directive.sh           SessionStart — the four facets:
+                                        codebase/ecosystem research, write-set
+                                        survey (a new dep or env var is a
+                                        decision), build-proposal fields,
+                                        judgment (scope-exceeded stop rule,
+                                        honest claims, "What did not work",
+                                        placement ladder, hunt cadence)
+    coding/hooks/state.sh               SessionStart — rebuilds open-unit
+                                        context from the issue branch + PR
+                                        review state
+    coding/hooks/record-fields-gate.sh  s20 minimum content on the record
+    coding/hooks/coding-progress-gate.sh  s15: a blocking verify finding
+                                        blocks build commits until
+                                        resolved_findings + finder re-clear
+    coding/hooks/trailer-gate.sh        commits staging docs/issue-<n>/** carry
+                                        `Subject: issue-<n>`
+    coding/hooks/handbook-trigger-gate.sh  s21 same-turn handbook sync
+    coding/hooks/hunt-guard.sh + hunt-state.sh + agents/warrant-hunter.md
+                                        the rotating adversarial hunter
+                                        (one at a time, stances rotate)
+    blueprint/ no-mock/ no-footgun/     steering plugins, unchanged
+    tests/                              repo-level checks (never installed)
 
-So the stack splits the two layers that most harnesses fuse:
+## Record vocabulary
 
-- **Generation layer — the agent.** A pure generator, run raw: no self-review, no re-reading, no repair loop. Because every agent draws on the same pretrained distribution they are interchangeable, which is exactly what licenses fanning a task across many cheap equal workers and cutting wall-clock.
-- **Verification layer — you.** The oracle lives with the human. Your feedback across rounds *is* the verification procedure.
-
-The economics follow: cheap turns make failure cheap, and **fifty small failures at cost 1 beat one expensive, self-verifying failure at cost 100**. Parallel generation buys speed; human feedback — not the model's self-scrutiny, and not raw agent count (equal agents share blind spots and fail alike) — is what converges the artifact onto the oracle. Steering plugins simply shorten that convergence by moving the generator's *prior* toward the oracle before it writes, never by inspecting the *sample* after. The full argument, with citations and internal measurements, is the position paper [*Generation Is All You Need*](docs/reports/generation-is-all-you-need.md) (Jung & Lee).
-
-The headline measurement — the freelunch plugin's on/off ablation, 18 tasks, 72 headless runs, scored by hidden test scripts:
-
-<img src="docs/_assets/figure-4-ablation-speedup.svg" alt="Measured per-task wall-clock speedup of the parallel-generation plugin across 18 tasks: geometric mean 1.50x, one task slower, quality tied at 630 of 632 checks in both arms" width="700">
-
-Geometric mean **1.50× faster at tied quality** (630/632 checks pass in each arm), with the one task that ran slower under fan-out reported rather than trimmed.
-
-## Repository knowledge preservation
-
-The thesis has a corollary the stack now leans on as hard as the first: **if the generation layer is stateless and interchangeable, the knowledge cannot live in the session — it has to live in the repository.** A cheap worker is discarded after its turn; a session ends; an agent that resumes has no memory of the one before it. So the durable record of *what was decided, what was tried, what failed, and what is still open* must be reconstructable from git alone. The test is concrete: **a person or agent with no memory of this project should be able to onboard from the repository without loss** — no tribal knowledge, no "ask whoever wrote it," no state stranded in a chat log.
-
-Three plugins carry this, and it is one idea — the repository as its own memory:
-
-- **[warrant](warrant/)** freezes the *intent* before the code: a proposal states the request, constraints, and write set; a `## What did not work` section and a per-unit hunt record capture what fell over and what was probed; `SessionStart` rebuilds an interrupted unit from disk, and every commit's trailer ties it back to its proposal. A stranger picks up the branch and sees not just what stands but what already failed.
-- **[doctrine](doctrine/)** files durable knowledge by *lifetime*, so the record stays high-signal: decisions fixed at the moment they were made, handbooks kept current, reports fixed to a point in time. Nothing important scatters; nothing goes stale unnoticed.
-- **[dispatch](dispatch/)** turns a chat conversation into a git record: the requirement becomes an issue, the work a PR that `Closes` it, the feedback that steered each round becomes PR comments, and a PR merges only on an explicit, recorded approval. Nothing that shaped the work is left to a chat log.
-
-The position paper ([*Generation Is All You Need*](docs/reports/generation-is-all-you-need.md)) argues the generation/verification split; these three make the record that survives it, so the human oracle — or a fresh agent standing in for the last one — always resumes from the same durable ground.
+`loop_state`: `proposed, approved, landed` (+ `findings-resolved` per s15;
+terminal: `landed`). Signals: commit shas landed, `resolved_findings:`
+naming the finder path and finder-record sha, `## What did not work`.
 
 ## Install
 
-```
-curl -fsSL https://raw.githubusercontent.com/tokenmaxxxer/coding-agent-rulebook/main/install.sh | bash
-```
+    claude plugin marketplace add tokenmaxxxer/coding-agent-rulebook
+    claude plugin install coding@tokenmaxxxer-coding
 
-This registers the `tokenmaxxxer-coding` marketplace and installs the whole stack — the `coding-agent-env` bundle plus every plugin it depends on — at **user scope**. It applies to your account on every machine-local session; it does not travel with a repo and does not reach Claude Code on the web or Slack cloud sessions. install.sh writes nothing to the repo it's run from: no `.claude/settings.json` at a repo root, and no SessionStart hook.
+Kill switch: `CODING_CYCLE_OFF=1`.
 
-The script prefers a real `claude` CLI (standalone, or the binary bundled inside the VSCode extension) if it finds one, and runs `plugin install <name>@tokenmaxxxer-coding --scope user` for each plugin plus the bundle, then updates each to the marketplace's latest. If no `claude` binary is found — or `TOKENMAXXXER_SETTINGS_ONLY=1` is set to force it — the script falls back to writing `~/.claude/settings.json` directly: it merges in the marketplace declaration and enables the bundle, preserving any existing keys and writing a `.bak` before touching an existing file. Either path installs the same bundle the same way.
+## Run the checks
 
-`install.sh --help` prints usage. The only other input it reads is the `TOKENMAXXXER_SETTINGS_ONLY=1` environment variable described above.
-
-Or, from any Claude Code session, the equivalent by hand:
-
-```
-/plugin marketplace add tokenmaxxxer/coding-agent-rulebook
-/plugin install coding-agent-env@tokenmaxxxer-coding
-```
-
-One interactive step remains after either path: open `/plugin` → marketplaces → tokenmaxxxer-coding and enable **auto-update**, so future stack additions arrive automatically (there is no CLI switch for this toggle). Verify with `/plugins`. Individual plugins install the same way: `/plugin install terse@tokenmaxxxer-coding`. If an update ever complains about a missing dependency, re-run install.sh — it is idempotent and installs the full stack explicitly.
-
-## Plugins
-
-| Plugin | What it does |
-|---|---|
-| [freelunch](freelunch/) ⚡ | Estimates a task's *width* (count of independently-producible units) before acting, then runs a lean solo pass for narrow tasks or a fan-out of concurrent background Sonnet agents for wide ones. Measured 1.50x geomean wall-clock speedup at tied quality and lower token cost. |
-| [terse](terse/) | Compresses conversational output prose (−38% output tokens measured); code, worker prompts, contracts, and safety-critical text are verbatim zones. Levels via `/terse`. |
-| [blueprint](blueprint/) | Sixteen-archetype architecture database with a deterministic classify/recommend CLI; each archetype carries the fan-out contract to freeze before dispatching workers. |
-| [no-mock](no-mock/) | Steers deliverables toward production-runnable structure: real persistence and integration seams from the first line, no silent mocks. |
-| [scout](scout/) | Pre-build reconnaissance (Camp benchmarking + Kano + saturation stop): finds best-in-class exemplars and the category's must-be baseline, compresses them into a scout brief that steers the build. Measured: restores the must-be features baseline builds systematically omit. |
-| [no-footgun](no-footgun/) 🔒 | Direction-only security steering: names the threat patterns for the surface being built (injection, deserialization, XSS, secrets, paths, SSRF, IDOR) so the secure pattern is chosen at write time. Surface-gated, cascading custom rules, zero review passes. Unbenchmarked as of v0.1.0. |
-| [doctrine](doctrine/) 📁 | Documentation placement: every document lives in one of six lifetime-based buckets under `docs/` (`decisions/`, `handbooks/`, `reports/`, `specs/`, `proposals/`, `_assets/`). A directive classifies at write time; a `PreToolUse` gate refuses writes that land under `docs/` outside them. Unbenchmarked as of v0.1.0. |
-| [warrant](warrant/) 🔒 | Work-unit protocol: a proposal states the request, constraints, and the write set before any code is written; approval freezes that set and the build then runs uninterrupted. A `PreToolUse` gate refuses edits outside the set and commits without the `Proposal:` trailer; `SessionStart` rebuilds state from the repository so an interrupted unit survives the session. At each transition one bounded background hunter probes for silent failures and composition errors on a single stance, returning a reproduced finding or nothing; the proposal and a per-unit hunt record keep what failed and what was probed, so a stranger can resume the work. Unbenchmarked as of v0.4.0. |
-| [dispatch](dispatch/) 📡 | Chat-to-git record-keeping: when you work through chat, the conversation becomes a durable git record — a requirement becomes an issue, the work a PR that `Closes` it, feedback becomes PR comments — and a PR merges only on an explicit, recorded user approval. Direction only (one `UserPromptSubmit` directive, no gates), so a person or agent with no memory of the session can reconstruct intent, work, and rationale from git alone. Unbenchmarked as of v0.5.0. |
-| [coding-agent-env](coding-agent-env/) | One-install bundle: pulls the whole stack in as dependencies. |
-
-## Writing the settings by hand
-
-If you'd rather not run the installer, the minimum to declare by hand is the marketplace plus the `coding-agent-env` bundle — its dependencies resolve on the next CLI install. This is also exactly what install.sh's CLI-less fallback writes:
-
-```json
-{
-  "extraKnownMarketplaces": {
-    "tokenmaxxxer-coding": {
-      "source": { "source": "github", "repo": "tokenmaxxxer/coding-agent-rulebook" }
-    }
-  },
-  "enabledPlugins": {
-    "coding-agent-env@tokenmaxxxer-coding": true
-  }
-}
-```
-
-install.sh's CLI path goes further: it enables all ten plugins explicitly (the nine dependencies plus the bundle) in `enabledPlugins`. The extra entries are just explicit — the single bundle entry above is enough on its own.
-
-Prefer a subset? Enable individual plugins instead (`"terse@tokenmaxxxer-coding": true`, …).
-
-## Repo layout
-
-- `install.sh` — the one-shot installer described above.
-- `.claude-plugin/marketplace.json` — the marketplace manifest.
-- `freelunch/`, `terse/`, `blueprint/`, `no-mock/`, `scout/`, `no-footgun/`, `doctrine/`, `warrant/`, `dispatch/`, `coding-agent-env/` — one directory per plugin, each with its own README and benchmark notes.
-- `docs/` — follows the doctrine this repo ships: documents live in lifetime buckets (`reports/` here), attachments in `_assets/`.
+    /bin/bash tests/parse-check.sh
+    /bin/bash tests/run-gate-tests.sh
+    /bin/bash tests/deny-only-check.sh

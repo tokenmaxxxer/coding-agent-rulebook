@@ -1,0 +1,7 @@
+{
+  "name": "coding",
+  "description": "The coding role on contract v3: the generation layer \u2014 approved scope to working code, verification left to qa/review/verify and the human's PR review. Write-set-frozen proposals, the scope-exceeded stop rule, honest claims (no-mock), '## What did not work' at the moment of failure, the doctrine placement ladder, s15 finding-resolution enforcement, and the rotating warrant-hunter. Companion plugins in this marketplace: blueprint, no-mock, no-footgun.",
+  "author": {
+    "name": "Jung Jiwon & Lee Jongkwan"
+  }
+}
