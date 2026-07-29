@@ -29,11 +29,10 @@ proceed as if a contract were in force.
 ## 3. Wakes-on
 
 Coding is a role reading and writing a shared blackboard, not a party
-accepting or refusing a handed-over parcel. Coding wakes on:
-
-- a feasibility `verdict: go`;
-- a `qa-record` defect carrying a human is-this-a-defect verdict;
-- a `finding` with `addressed_to: coding`.
+accepting or refusing a handed-over parcel. Which record states wake
+coding is routing, not coding's own record format, and is canon at
+on-the-record's `docs/specs/wake-routing.md` — this document does not
+restate it.
 
 There is no SHA pin and no external original to compare a handed-over
 artifact against — coding's own repo is the only source of truth it reads,
@@ -87,12 +86,12 @@ with:
 
 An entry missing any of the three parts does not close the finding.
 
-The qa <-> coding cycle-termination rule: a `finding` from qa produces a
-`finding-response` from coding; coding's fix produces a commit, which
-wakes qa again; the cycle terminates only when qa's resulting wake
-produces either `loop_state: verified-fixed` with no new finding, or a
-genuinely new finding (not a restatement of an already-filed, unresolved
-one).
+The qa <-> coding cycle-termination rule (which role a fix commit wakes,
+and when the cycle ends, is routing canon at on-the-record's
+`docs/specs/wake-routing.md`): the cycle terminates only when the
+resulting wake produces either `loop_state: verified-fixed` with no new
+finding, or a genuinely new finding (not a restatement of an
+already-filed, unresolved one).
 
 ## 8. Loop termination
 

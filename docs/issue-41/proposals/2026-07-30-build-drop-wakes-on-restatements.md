@@ -1,6 +1,6 @@
 ---
 kind: build-proposal
-loop_state: proposed
+loop_state: landed
 ---
 
 files: docs/specs/handoff-protocol.md
