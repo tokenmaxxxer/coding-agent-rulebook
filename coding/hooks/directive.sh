@@ -34,6 +34,13 @@ PROPOSAL (phase 1): the build proposal — files: (the frozen write set),
 ## Request (paraphrased intent, secrets stripped), ## Constraints,
 ## What will be done, ## Out of scope, and how you'll know it worked.
 
+ISSUE REFERENCE, phase-dependent: the phase-1 proposal PR references its
+issue as plain #n in the body — never Closes/Fixes/Resolves #n. Merging
+a phase-1 PR must not auto-close the issue; only the phase-2 delivery PR
+carries Closes #n. If a phase-2 session finds its issue already closed
+with no delivery landed, that is an anomaly to report, not a completed
+task — do not silently exit.
+
 EXECUTION JUDGMENT (phase 2, quality bar):
 - SCOPE-EXCEEDED RULE: when the work needs a file outside the frozen
   write set, finish what the proposal covers, STOP, and report — never
