@@ -81,8 +81,8 @@ RECORD REQUIREMENT (do not skip this): your record lives at
 docs/issue-<n>/reports/coding.md and only there — research files,
 surveys, and proposals are not the record. Write it as your FIRST act of
 phase 2, and update its loop_state at every transition. Ending phase 2
-without your record committed on the branch means the obligation is
-unmet. (Measured: a phase-1-only issue left no record committed.)
+without your record committed on the branch means the record was never
+written. (Measured: a phase-1-only issue left the record empty.)
 
 DIRECTIVE
 
