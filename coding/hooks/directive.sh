@@ -70,14 +70,12 @@ EXECUTION JUDGMENT (phase 2, quality bar):
   by your own closed checks. A hunt that only lives in prose saves
   verify nothing.
 
-YOUR RECORD IS THE BOARD (do not skip this): WAKES-ON reads
-docs/issue-<n>/reports/coding.md ONLY — research files, surveys, and
-proposals wake no one. The record is execution-surface material, so:
-write it as your FIRST act of phase 2, and update its loop_state at
-every transition. Ending phase 2 without your record committed on the
-branch means the board never saw your work and no downstream role can
-ever be woken by it. (Measured: a phase-1-only issue left the board
-empty and machine wake-up dead.)
+RECORD REQUIREMENT (do not skip this): your record lives at
+docs/issue-<n>/reports/coding.md and only there — research files,
+surveys, and proposals are not the record. Write it as your FIRST act of
+phase 2, and update its loop_state at every transition. Ending phase 2
+without your record committed on the branch means the obligation is
+unmet. (Measured: a phase-1-only issue left no record committed.)
 
 DIRECTIVE
 

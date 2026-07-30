@@ -26,13 +26,10 @@ collaboration contract yet." This is an honest failure, never a silent
 pass: coding does not fall back to some other repo's contract and does not
 proceed as if a contract were in force.
 
-## 3. Wakes-on
+## 3. Record source of truth
 
 Coding is a role reading and writing a shared blackboard, not a party
-accepting or refusing a handed-over parcel. Which record states wake
-coding is routing, not coding's own record format, and is canon at
-on-the-record's `docs/specs/wake-routing.md` — this document does not
-restate it.
+accepting or refusing a handed-over parcel.
 
 There is no SHA pin and no external original to compare a handed-over
 artifact against — coding's own repo is the only source of truth it reads,
@@ -61,10 +58,8 @@ so no pin concept applies here.
 - `coding-record`: same `loop_state` vocabulary as `build-proposal`, plus
   `finding-response` sub-entries (section 7 below); required fields:
   pointer to the active `build-proposal`, commit shas landed.
-- `loop_state` is the one part of coding's internal state a downstream
-  role's WAKES-ON check may depend on. A transition coding completes
-  internally but does not reflect onto the board's `loop_state` has not,
-  for contract purposes, completed.
+- A transition coding completes internally but does not reflect onto the
+  board's `loop_state` has not, for contract purposes, completed.
 
 ## 6. Produces
 
@@ -86,19 +81,17 @@ with:
 
 An entry missing any of the three parts does not close the finding.
 
-The qa <-> coding cycle-termination rule (which role a fix commit wakes,
-and when the cycle ends, is routing canon at on-the-record's
-`docs/specs/wake-routing.md`): the cycle terminates only when the
-resulting wake produces either `loop_state: verified-fixed` with no new
-finding, or a genuinely new finding (not a restatement of an
-already-filed, unresolved one).
+The qa <-> coding cycle terminates only when the resulting record entry
+carries either `loop_state: verified-fixed` with no new finding, or a
+genuinely new finding (not a restatement of an already-filed, unresolved
+one).
 
 ## 8. Loop termination
 
-A wake is consumed only by writing the resulting record entry (a
-`loop_state` change, a new `finding-response`, or equivalent). Leaving the
-board byte-identical to what woke coding means the wake was not consumed
-and fires no further wake.
+An action under this document requires writing the resulting record entry
+(a `loop_state` change, a new `finding-response`, or equivalent). Leaving
+the board byte-identical to its prior state means the action has not been
+recorded.
 
 ## 9. Stops
 
