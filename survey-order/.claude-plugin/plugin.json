@@ -1,0 +1,8 @@
+{
+  "name": "survey-order",
+  "version": "0.1.0",
+  "description": "Enforces research-before-proposal write ordering: a phase-1 proposal write for issue-<n> is blocked unless docs/issue-<n>/reports/implementation/survey.md already exists on disk, or the proposal itself states the scout-skip condition.",
+  "author": {
+    "name": "Jung Jiwon & Lee Jongkwan"
+  }
+}

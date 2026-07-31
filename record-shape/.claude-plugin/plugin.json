@@ -1,0 +1,8 @@
+{
+  "name": "record-shape",
+  "version": "0.1.0",
+  "description": "Enforces the implementation role's phase-2 record shape (issue-52): required `code_under_review:`/`loop_state:` frontmatter, a `## What did not work` heading present even when empty, and a `## Rationale for deviations` section required only when phase-2 execution diverged from the approved phase-1 proposal.",
+  "author": {
+    "name": "Jung Jiwon & Lee Jongkwan"
+  }
+}

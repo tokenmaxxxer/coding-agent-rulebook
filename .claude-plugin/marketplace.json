@@ -23,6 +23,21 @@
       "name": "no-footgun",
       "source": "./no-footgun",
       "description": "Direction-only security steering: names the threat patterns for the surface being built so the secure pattern is chosen at write time — surface-gated, cascading custom rules, zero review passes or scans."
+    },
+    {
+      "name": "proposal-shape",
+      "source": "./proposal-shape",
+      "description": "Owns the phase-1 proposal shape adopted in issue-52 (ADR-style seven-section skeleton, non-trivial Rationale naming a rejected alternative). Directive plus a PreToolUse gate on docs/issue-<n>/proposals/*.md, order-checked, named deny messages, own kill switch."
+    },
+    {
+      "name": "record-shape",
+      "source": "./record-shape",
+      "description": "Owns the phase-2 record shape adopted in issue-52 (code_under_review:/loop_state: frontmatter, '## What did not work' present even when empty, conditional '## Rationale for deviations'). Directive plus a PreToolUse gate on docs/issue-<n>/reports/implementation.md, own kill switch."
+    },
+    {
+      "name": "survey-order",
+      "source": "./survey-order",
+      "description": "Owns the research-before-proposal write ordering: a phase-1 proposal write is blocked unless its issue's current-state survey file already exists on disk, or the proposal itself states the scout-skip condition. Directive plus a PreToolUse gate, own kill switch."
     }
   ]
 }
