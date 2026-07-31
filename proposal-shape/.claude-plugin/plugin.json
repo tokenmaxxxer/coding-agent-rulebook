@@ -1,0 +1,8 @@
+{
+  "name": "proposal-shape",
+  "version": "0.1.0",
+  "description": "Enforces the ADR-style 7-section phase-1 proposal shape (files:, Request, Constraints, Rationale, What will be done, Out of scope, How you'll know it worked) — order-checked, with a non-trivial Rationale naming a rejected alternative.",
+  "author": {
+    "name": "Jung Jiwon & Lee Jongkwan"
+  }
+}
