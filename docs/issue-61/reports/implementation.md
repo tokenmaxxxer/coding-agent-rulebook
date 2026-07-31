@@ -1,7 +1,7 @@
 ---
 subject: issue-61
 role: implementation
-code_under_review: <pending: set to this branch's HEAD sha before PR>
+code_under_review: a1dee6e8e5616a7ce39d44bda306a8b0250feb13
 loop_state: landed
 ---
 
