@@ -40,9 +40,16 @@ else
   echo "deny-only-check: ok — no permissionDecision allow under $dir"
 fi
 
-# --- substance probe: an empty coding record must be refused --------------
-probe_dir="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../coding/hooks" && pwd -P)}"
-rec_rel="docs/issue-999/reports/coding.md"
+# --- substance probe: an empty implementation record must be refused ------
+# docs/issue-64 remediation: the record moved from coding/hooks/
+# record-fields-gate.sh (checked docs/issue-<n>/reports/coding.md) to
+# record-shape/hooks/record-shape-gate.sh (checks
+# docs/issue-<n>/reports/implementation.md) when coding's record-field
+# checks were consolidated — the probe now scans the whole repo root so it
+# reaches whichever gate currently owns this check, at the path it currently
+# owns.
+probe_dir="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}"
+rec_rel="docs/issue-999/reports/implementation.md"
 
 substance_probe() {
   gates="$(find "$probe_dir" -name '*-gate.sh' -type f 2>/dev/null || true)"

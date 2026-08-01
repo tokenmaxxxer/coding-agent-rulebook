@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
-__fc(){ rc=$?; if [ "$rc" != 0 ] && [ "$rc" != 2 ]; then echo "fail-closed: gate aborted (rc=$rc)" >&2; exit 2; fi; }
-trap __fc EXIT
-# ^ fail-closed trap-at-top: any abnormal termination (failed source, set -u
-#   abort, unbound var, etc.) before the verdict logic runs is forced to
-#   exit 2 (DENY), since a PreToolUse hook treats any non-2 exit as
-#   NON-BLOCKING (fail-OPEN). Installed as the FIRST executable statement,
-#   above any set/source. Legitimate exit 0 (allow) / exit 2 (deny) verdicts
-#   pass through unchanged; only other codes are remapped to 2.
+# Fail-closed trap-at-top (gate_trap_fail_closed, sourced from gate-lib.sh
+# below): any abnormal termination (failed source, set -u abort, unbound
+# var, etc.) before the verdict logic runs is forced to exit 2 (DENY),
+# since a PreToolUse hook treats any non-2 exit as NON-BLOCKING (fail-OPEN).
+# Installed as the FIRST executable statement, above any other set/source.
+# Legitimate exit 0 (allow) / exit 2 (deny) verdicts pass through
+# unchanged; only other codes are remapped to 2.
 # PreToolUse gate (Bash matching `git commit`) — contract §15 (verify's
 # blocking-finding predicate, implemented HERE in coding's rulebook because
 # coding is the role being refused progress).
@@ -23,9 +22,15 @@ trap __fc EXIT
 # Additive sibling to scope-gate.sh; never edits it. FAIL-CLOSED on every
 # malformed/missing-input branch (modeled on ops-cycle/state-gate.sh): if
 # verify.md is present but unreadable/unparseable, refuse rather than pass.
+#
+# Kill switch: export CODING_CYCLE_OFF=1
+. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../core" && pwd -P)}/hooks/lib/gate-lib.sh"
+gate_trap_fail_closed
 set -uo pipefail
 
 deny() { echo "warrant: refused — $*" >&2; exit 2; }
+
+gate_kill_switch_active "${CODING_CYCLE_OFF:-}" || { trap - EXIT; exit 0; }
 
 command -v python3 >/dev/null 2>&1 || deny "coding-progress-gate.sh requires python3, which is not on PATH; denying rather than guessing."
 command -v git >/dev/null 2>&1 || deny "coding-progress-gate.sh requires git, which is not on PATH; denying rather than guessing."
@@ -43,18 +48,16 @@ fi
 CP_PAYLOAD="$payload" CP_ROOT="$root" python3 <<'PY'
 import sys as _fc_sys  # fail-closed-on-internal-error
 try:
-    import json, os, posixpath, re, subprocess, sys
+    import importlib.util, json, os, posixpath, re, subprocess, sys
 
     def deny(m):
         sys.stderr.write("warrant: refused — " + m + "\n"); sys.exit(2)
 
+    _spec = importlib.util.spec_from_file_location("gate_lib", os.environ["GATE_LIB_PY"])
+    gate_lib = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(gate_lib)
+
     raw = os.environ.get("CP_PAYLOAD", "")
-    try:
-        ev = json.loads(raw) if raw else {}
-    except ValueError:
-        deny("the tool-call payload is not valid JSON; failing closed on §15.")
-    if not isinstance(ev, dict):
-        deny("the tool-call payload is not a JSON object; failing closed on §15.")
+    ev = gate_lib.gate_parse_json_or_deny(raw, deny)
 
     if ev.get("tool_name") != "Bash":
         sys.exit(0)
@@ -81,11 +84,11 @@ try:
         deny("could not read the staged file set (`git diff --cached`); failing closed on §15.")
     staged = [ln.strip() for ln in r.stdout.splitlines() if ln.strip()]
 
-    # derive subject(s) from staged coding record, staged build files' subject via
-    # trailer, or a Subject: trailer in the commit message.
+    # derive subject(s) from staged implementation record, or a Subject:
+    # trailer in the commit message.
     subjects = set()
     for f in staged:
-        m = re.match(r'^docs/(issue-[0-9]+)/reports/coding\.md$', f)
+        m = re.match(r'^docs/(issue-[0-9]+)/reports/implementation\.md$', f)
         if m:
             subjects.add(m.group(1))
     for m in re.finditer(r'(?im)^\s*subject:\s*([A-Za-z0-9._-]+)\s*$', cmd):
@@ -136,27 +139,77 @@ try:
         if not blocking:
             continue
 
-        cpath = posixpath.join(root, "docs", subject, "reports", "coding.md")
+        cpath = posixpath.join(root, "docs", subject, "reports", "implementation.md")
         ctext = read(cpath) if os.path.isfile(cpath) else ""
         if ctext is None:
-            deny("subject '%s' coding record exists but cannot be read; failing closed on §15." % subject)
+            deny("subject '%s' implementation record exists but cannot be read; failing closed on §15." % subject)
 
         # verify record's own loop_state must be cleared for a finding to count resolved.
         vstate_m = re.search(r'^\s*loop_state:\s*([A-Za-z0-9_-]+)\s*$', vtext, re.M)
         vstate = vstate_m.group(1).lower() if vstate_m else None
 
+        SHA_RE = re.compile(r'\b[0-9a-f]{7,40}\b')
+
+        def resolved_entries(text):
+            # Bound the `resolved_findings` section by its own heading/key
+            # line, ending at the next top-level heading/key or EOF — never
+            # the whole surrounding record. Then split that section into
+            # per-finding sub-entries at each top-level `- ` list marker (or
+            # keep it as one entry if the section carries no list markers at
+            # all), so a later finding's own text can never satisfy an
+            # earlier finding's check.
+            lines = text.split("\n")
+            start = None
+            for i, ln in enumerate(lines):
+                if re.match(r'^\s*#*\s*resolved_findings\s*:?\s*$', ln, re.I):
+                    start = i + 1
+                    break
+            if start is None:
+                return []
+            end = len(lines)
+            for i in range(start, len(lines)):
+                if re.match(r'^\s*#{1,6}\s+\S', lines[i]) or re.match(r'^[A-Za-z_][A-Za-z0-9_]*\s*:\s*$', lines[i]):
+                    end = i
+                    break
+            section = lines[start:end]
+            entries, cur = [], []
+            for ln in section:
+                if re.match(r'^\s*-\s', ln):
+                    if cur:
+                        entries.append(cur)
+                    cur = [ln]
+                else:
+                    cur.append(ln)
+            if cur:
+                entries.append(cur)
+            if not entries and section:
+                entries = [section]
+            return ["\n".join(e) for e in entries]
+
+        def entry_resolves(entry_text, fid):
+            # Within THIS finding's own sub-entry, the sha-shaped token must
+            # sit adjacent to (same line, or the immediately following
+            # line as) the mention of verify.md or the finding's own id —
+            # not merely present anywhere in the entry's free text.
+            entry_lines = entry_text.split("\n")
+            for i, ln in enumerate(entry_lines):
+                names = ("verify.md" in ln.lower()) or (
+                    fid is not None and re.search(re.escape(fid), ln))
+                if not names:
+                    continue
+                if SHA_RE.search(ln):
+                    return True
+                if i + 1 < len(entry_lines) and SHA_RE.search(entry_lines[i + 1]):
+                    return True
+            return False
+
+        entries = resolved_entries(ctext)
+
         for f in blocking:
             fid = f["id"]
             # coding must carry a resolved_findings entry naming the verify record
             # path + a sha, and the verifier's record must currently be `cleared`.
-            has_resolved = False
-            # look for a resolved_findings section that references verify.md + a sha
-            if re.search(r'(?is)resolved_findings', ctext):
-                block = ctext
-                names_verify = ("verify.md" in block) or (
-                    fid is not None and re.search(re.escape(fid), block))
-                has_sha = re.search(r'\b[0-9a-f]{7,40}\b', block) is not None
-                has_resolved = bool(names_verify and has_sha)
+            has_resolved = any(entry_resolves(e, fid) for e in entries)
             if not (has_resolved and vstate == "cleared"):
                 deny(
                     "verify.md carries an unresolved blocking finding addressed_to: coding for "
