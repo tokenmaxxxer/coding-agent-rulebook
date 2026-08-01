@@ -6,12 +6,12 @@ trap 'rc=$?; if [ "$rc" != 0 ] && [ "$rc" != 2 ]; then exit 2; fi' EXIT
 . "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../core" && pwd -P)}/hooks/lib/gate-lib.sh"
 set -uo pipefail
 gate_kill_switch_active "${CODING_CYCLE_OFF:-}" || { trap - EXIT; exit 0; }
-[ "${CLAUDE_ROLE:-}" = "coding" ] || { trap - EXIT; exit 0; }
+[ "${CLAUDE_ROLE:-}" = "implementation" ] || { trap - EXIT; exit 0; }
 
 root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)}"
 [ -n "$root" ] || { trap - EXIT; exit 0; }
 branch="$(git -C "$root" symbolic-ref --short HEAD 2>/dev/null || true)"
-case "$branch" in issue-*/coding) ;; *) trap - EXIT; exit 0 ;; esac
+case "$branch" in issue-*/implementation) ;; *) trap - EXIT; exit 0 ;; esac
 issue="${branch%%/*}"
 
 echo "[coding] Resuming ${branch}: subject ${issue}."

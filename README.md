@@ -1,4 +1,4 @@
-# tokenmaxxxer / coding-agent-rulebook
+# tokenmaxxxer / implementation-rulebook
 
 The `coding` role on contract v3. A coding session is spawned with two
 plugin sets installed: this marketplace's plugins (`coding`, the steering
@@ -63,7 +63,7 @@ naming the finder path and finder-record sha, `## What did not work`.
 
 ## Install
 
-    claude plugin marketplace add tokenmaxxxer/coding-agent-rulebook
+    claude plugin marketplace add tokenmaxxxer/implementation-rulebook
     claude plugin install coding@tokenmaxxxer-coding
 
 Kill switches: `CODING_CYCLE_OFF=1` (coding's directive/state), `WARRANT_OFF=1`

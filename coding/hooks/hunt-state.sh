@@ -18,8 +18,17 @@
 #
 # Kill switch: export WARRANT_OFF=1
 
-. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../core" && pwd -P)}/hooks/lib/gate-lib.sh"
-gate_kill_switch_active "${WARRANT_OFF:-}" || exit 0
+_gate_lib="${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../core" && pwd -P)}/hooks/lib/gate-lib.sh"
+if [ -f "$_gate_lib" ]; then
+  . "$_gate_lib"
+  gate_kill_switch_active "${WARRANT_OFF:-}" || exit 0
+else
+  # core plugin missing: this hook is informing-only (never blocks — see
+  # header), so the kill-switch check is skipped rather than failing closed.
+  # The release/reset cleanup below does not depend on any core function
+  # (plain rm on lock/count files), so it still runs in full.
+  echo "hunt-state.sh: core plugin not found (gate-lib.sh missing at $_gate_lib); skipping kill-switch check, cleanup still runs" >&2
+fi
 
 # Root resolution is shared with hunt-guard.sh and must stay identical: the
 # project directory, normalized to the git top level when there is one. A

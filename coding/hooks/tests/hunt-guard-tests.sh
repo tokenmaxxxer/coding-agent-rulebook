@@ -55,5 +55,23 @@ rc=$?; case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
 report deny "$got" workflow-tool-session-cap-denies-4th
 rm -rf "$cap_td" "$payload_file"
 
+# missing-core: force CLAUDE_PLUGIN_ROOT_CORE to a nonexistent path so the
+# source guard's [ -f ... ] check trips before gate-lib.sh is sourced. Must
+# fail-closed (exit 2) with a human-readable "core plugin not found" message,
+# not the trap's generic raw-error remap (issue-70 blocking reason 1).
+missing_core_td="$(cd "$(mktemp -d)" && pwd -P)"; git init -q "$missing_core_td"
+payload_file="$(mktemp)"
+printf '{"tool_name":"Agent","tool_input":{"subagent_type":"warrant-hunter","prompt":"hunt for bugs"},"cwd":"%s"}' \
+  "$missing_core_td" > "$payload_file"
+missing_core_out="$(cd "$missing_core_td" && env -u CLAUDE_PROJECT_DIR CLAUDE_PROJECT_DIR="$missing_core_td" \
+  CLAUDE_PLUGIN_ROOT_CORE="$missing_core_td/no-such-core" /bin/bash "$GUARD" < "$payload_file" 2>&1 >/dev/null)"
+rc=$?; case "$rc" in 0) got=allow ;; 2) got=deny ;; *) got="exit-$rc" ;; esac
+report deny "$got" missing-core-fails-closed
+case "$missing_core_out" in
+  *"core plugin not found"*) pass=$((pass+1)); printf 'ok     %-38s %s\n' missing-core-message-explicit "explicit" ;;
+  *) fail=$((fail+1)); printf 'FAIL   %-38s want=explicit got=%s\n' missing-core-message-explicit "$missing_core_out" ;;
+esac
+rm -rf "$missing_core_td" "$payload_file"
+
 printf '\n== %d passed, %d failed ==\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
