@@ -19,7 +19,7 @@ trap __fc EXIT
 # proposal file itself (instead of at Bash-commit time).
 #
 # Kill switch: export SURVEY_ORDER_GATE_OFF=1
-. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../core" && pwd -P)}/hooks/lib/gate-lib.sh"
+. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../core" && pwd -P)}/hooks/lib/gate-lib.sh" || { echo "survey-order-gate.sh: cannot source gate-lib.sh" >&2; exit 2; }
 set -uo pipefail
 
 deny() { echo "survey-order: refused — $*" >&2; exit 2; }

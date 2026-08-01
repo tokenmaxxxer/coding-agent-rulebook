@@ -80,7 +80,7 @@ All five gates (`coding-progress-gate.sh`, `proposal-shape-gate.sh`,
 `record-shape-gate.sh`, `survey-order-gate.sh`, plus `hunt-guard.sh`/
 `hunt-state.sh`/`state.sh`) source core's gate-house standard
 (`core/hooks/lib/gate-lib.sh`/`gate-lib.py`, issue #72) — reference only,
-never vendored (`docs/handbooks/canon-scripts.md`). Set
+never vendored (`docs/handbooks/gate-tests.md`). Set
 `CLAUDE_PLUGIN_ROOT_CORE` to your `tokenmaxxxer-core` checkout's `core/`
 directory before running these locally; a real plugin-marketplace install
 resolves it automatically.
@@ -90,6 +90,7 @@ resolves it automatically.
     /bin/bash tests/deny-only-check.sh
     /bin/bash tests/methodology-plugins-tests.sh
     /bin/bash coding/hooks/tests/coding-progress-gate-tests.sh
+    /bin/bash coding/hooks/tests/hunt-guard-tests.sh
     /bin/bash proposal-shape/hooks/tests/proposal-shape-tests.sh
     /bin/bash record-shape/hooks/tests/record-shape-tests.sh
     /bin/bash survey-order/hooks/tests/survey-order-tests.sh

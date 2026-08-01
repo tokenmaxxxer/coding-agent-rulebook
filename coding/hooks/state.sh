@@ -24,7 +24,7 @@ if command -v gh >/dev/null 2>&1; then
     echo "[coding] No open PR for ${branch} yet — phase 1 (research/survey/proposal) comes first."
   fi
 fi
-rec="$root/docs/${issue}/reports/coding.md"
-[ -f "$rec" ] && echo "[coding] Own record exists: docs/${issue}/reports/coding.md — read it before continuing."
+rec="$root/docs/${issue}/reports/implementation.md"
+[ -f "$rec" ] && echo "[coding] Own record exists: docs/${issue}/reports/implementation.md — read it before continuing."
 trap - EXIT
 exit 0
