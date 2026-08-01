@@ -33,10 +33,15 @@ progress() { # want name verify_content implementation_content [env...]
   want="$1"; name="$2"; vcontent="$3"; icontent="$4"; shift 4
   td="$(cd "$(mktemp -d)" && pwd -P)"; git init -q "$td"
   ( cd "$td" && git config user.email t@t && git config user.name t \
-    && mkdir -p docs/issue-7/reports src \
+    && mkdir -p docs/issue-7/reports src && echo x > src/app.py \
+    && git add -A && git commit -q -m init )
+  realsha="$(cd "$td" && git rev-parse HEAD)"
+  vcontent="${vcontent//\{\{SHA\}\}/$realsha}"
+  icontent="${icontent//\{\{SHA\}\}/$realsha}"
+  ( cd "$td" \
     && printf '%s' "$vcontent" > docs/issue-7/reports/verify.md \
     && printf '%s' "$icontent" > docs/issue-7/reports/implementation.md \
-    && echo x > src/app.py && git add -A )
+    && git add -A )
   payload_file="$(mktemp)"
   printf '{"tool_name":"Bash","tool_input":{"command":"git commit -m \\"fix\\n\\nSubject: issue-7\\""},"cwd":"%s"}' "$td" > "$payload_file"
   ( cd "$td" && env -u CLAUDE_PROJECT_DIR "$@" /bin/bash "$GATE" < "$payload_file" ) >/dev/null 2>&1
@@ -50,12 +55,21 @@ progress allow no-verify-findings "loop_state: cleared" 'loop_state: approved'
 
 # -- §15 structural upgrade: adjacency within the finding's OWN sub-entry --
 
-# allow: resolved_findings entry names verify.md adjacent to a sha, for the
-# SAME finding id, and verify's own loop_state is cleared.
+# allow: resolved_findings entry names verify.md adjacent to a sha that
+# names a real commit in the target repo, for the SAME finding id, and
+# verify's own loop_state is cleared.
 GOOD_RESOLVED='resolved_findings
 - id: F1
-  finder: docs/issue-7/reports/verify.md sha abc1234'
+  finder: docs/issue-7/reports/verify.md sha {{SHA}}'
 progress allow resolved-adjacent-allows "$VBLOCK_CLEARED" "$GOOD_RESOLVED"
+
+# deny: a correctly-shaped 7-hex token that names NO real commit in the
+# target repo — a shape-only match without an existence check would have
+# wrongly allowed this (§15 residual defect (a)).
+FAKE_RESOLVED='resolved_findings
+- id: F1
+  finder: docs/issue-7/reports/verify.md sha abc1234'
+progress deny resolved-adjacent-fake-sha-denies "$VBLOCK_CLEARED" "$FAKE_RESOLVED"
 
 # deny: a 7-hex token and the word "verify.md" both appear somewhere in the
 # record, but NOT adjacent within the same finding's own sub-entry (this is

@@ -14,7 +14,7 @@
 # docs/issue-<n>/reports/verify.md (same target repo coding is
 # building) and scan for inline `finding` blocks with severity: blocking and
 # addressed_to: coding. Each such finding counts as STILL BLOCKING unless
-# coding's own record docs/issue-<n>/reports/coding.md carries a
+# coding's own record docs/issue-<n>/reports/implementation.md carries a
 # `resolved_findings` entry naming that finder's path + finder-record sha AND
 # the finder's record loop_state is `cleared`. An unresolved blocking finding
 # => refuse the commit.
@@ -24,7 +24,7 @@
 # verify.md is present but unreadable/unparseable, refuse rather than pass.
 #
 # Kill switch: export CODING_CYCLE_OFF=1
-. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../core" && pwd -P)}/hooks/lib/gate-lib.sh"
+. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../core" && pwd -P)}/hooks/lib/gate-lib.sh" || { echo "coding-progress-gate.sh: cannot source gate-lib.sh" >&2; exit 2; }
 gate_trap_fail_closed
 set -uo pipefail
 
@@ -186,21 +186,33 @@ try:
                 entries = [section]
             return ["\n".join(e) for e in entries]
 
+        def sha_exists(token):
+            # A shape-matched token only counts if it actually names a real
+            # commit in the target repo — otherwise any correctly-shaped
+            # 7-to-40-hex string passes the check unverified (§15 residual
+            # defect (a)).
+            r = git("cat-file", "-e", token + "^{commit}")
+            return r is not None and r.returncode == 0
+
         def entry_resolves(entry_text, fid):
             # Within THIS finding's own sub-entry, the sha-shaped token must
             # sit adjacent to (same line, or the immediately following
             # line as) the mention of verify.md or the finding's own id —
-            # not merely present anywhere in the entry's free text.
+            # not merely present anywhere in the entry's free text. The
+            # token must also name a commit that actually exists.
             entry_lines = entry_text.split("\n")
             for i, ln in enumerate(entry_lines):
                 names = ("verify.md" in ln.lower()) or (
                     fid is not None and re.search(re.escape(fid), ln))
                 if not names:
                     continue
-                if SHA_RE.search(ln):
+                m = SHA_RE.search(ln)
+                if m and sha_exists(m.group(0)):
                     return True
-                if i + 1 < len(entry_lines) and SHA_RE.search(entry_lines[i + 1]):
-                    return True
+                if i + 1 < len(entry_lines):
+                    m = SHA_RE.search(entry_lines[i + 1])
+                    if m and sha_exists(m.group(0)):
+                        return True
             return False
 
         entries = resolved_entries(ctext)

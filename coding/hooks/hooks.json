@@ -4,7 +4,8 @@
       {
         "hooks": [
           { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/directive.sh" },
-          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/state.sh" }
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/state.sh" },
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/hunt-state.sh reset" }
         ]
       }
     ],
@@ -16,7 +17,7 @@
         ]
       },
       {
-        "matcher": "Agent|Task",
+        "matcher": "Agent|Task|Workflow",
         "hooks": [
           { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/hunt-guard.sh" }
         ]

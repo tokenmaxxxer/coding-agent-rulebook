@@ -4,8 +4,7 @@ All five of this repo's `*-gate.sh` scripts (`coding-progress-gate.sh`,
 `proposal-shape-gate.sh`, `record-shape-gate.sh`, `survey-order-gate.sh`,
 plus `hunt-guard.sh`/`hunt-state.sh`/`state.sh`) source core's gate-house
 standard (`core/hooks/lib/gate-lib.sh` + `gate-lib.py`, issue #72) —
-referenced, never vendored, per `docs/handbooks/canon-scripts.md`'s
-reference-not-copy rule.
+referenced, never vendored, per this handbook's reference-not-copy rule.
 
 To run any of this repo's test scripts locally (not through an installed
 plugin marketplace, where `CLAUDE_PLUGIN_ROOT_CORE` is resolved

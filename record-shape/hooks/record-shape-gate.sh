@@ -16,7 +16,7 @@ trap __fc EXIT
 # mandatory section on every record.
 #
 # Kill switch: export RECORD_SHAPE_GATE_OFF=1
-. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../core" && pwd -P)}/hooks/lib/gate-lib.sh"
+. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../core" && pwd -P)}/hooks/lib/gate-lib.sh" || { echo "record-shape-gate.sh: cannot source gate-lib.sh" >&2; exit 2; }
 set -uo pipefail
 
 role="${CLAUDE_ROLE:-record-shape}"
