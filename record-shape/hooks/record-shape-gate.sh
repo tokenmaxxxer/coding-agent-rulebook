@@ -16,15 +16,13 @@ trap __fc EXIT
 # mandatory section on every record.
 #
 # Kill switch: export RECORD_SHAPE_GATE_OFF=1
+. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../core" && pwd -P)}/hooks/lib/gate-lib.sh"
 set -uo pipefail
 
 role="${CLAUDE_ROLE:-record-shape}"
 deny() { echo "${role}: refused — $1" >&2; exit 2; }
 
-case "${RECORD_SHAPE_GATE_OFF:-}" in
-  ""|0|false|no|off) ;;
-  *) exit 0 ;;
-esac
+gate_kill_switch_active "${RECORD_SHAPE_GATE_OFF:-}" || exit 0
 
 command -v python3 >/dev/null 2>&1 || deny "record-shape-gate.sh requires python3, which is not on PATH; denying rather than guessing."
 
@@ -71,7 +69,10 @@ PG_PAYLOAD="$payload" PG_ROOT="$root" \
 python3 <<'PY'
 import sys as _fc_sys  # fail-closed-on-internal-error
 try:
-    import json, os, posixpath, re, sys
+    import importlib.util, json, os, posixpath, re, sys
+
+    _spec = importlib.util.spec_from_file_location("gate_lib", os.environ["GATE_LIB_PY"])
+    gate_lib = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(gate_lib)
 
     def deny(m):
         sys.stderr.write("record-shape: refused — %s\n" % m); sys.exit(2)
@@ -125,28 +126,10 @@ try:
             deny("%s exists but cannot be read; failing closed on record shape." % rel)
 
     new_text = None
-    if tool == "Write":
-        c = ti.get("content")
-        if isinstance(c, str):
-            new_text = c
-    elif tool == "Edit":
-        o, n = ti.get("old_string"), ti.get("new_string")
-        if isinstance(o, str) and isinstance(n, str) and current is not None and o in current:
-            new_text = current.replace(o, n, 1)
-    elif tool == "MultiEdit":
-        edits = ti.get("edits")
-        text = current
-        if isinstance(edits, list) and text is not None:
-            ok = True
-            for e in edits:
-                if not isinstance(e, dict):
-                    ok = False; break
-                o, n = e.get("old_string"), e.get("new_string")
-                if not isinstance(o, str) or not isinstance(n, str) or o not in text:
-                    ok = False; break
-                text = text.replace(o, n, 1)
-            if ok:
-                new_text = text
+    if tool in ("Write", "Edit", "MultiEdit"):
+        new_text, _ok = gate_lib.gate_reconstruct_write(tool, ti, current)
+        if not _ok:
+            new_text = None
 
     if new_text is None:
         deny(

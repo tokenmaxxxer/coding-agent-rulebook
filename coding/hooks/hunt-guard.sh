@@ -7,6 +7,7 @@ trap __fc EXIT
 #   NON-BLOCKING (fail-OPEN). Installed as the FIRST executable statement,
 #   above any set/source. Legitimate exit 0 (allow) / exit 2 (deny) verdicts
 #   pass through unchanged; only other codes are remapped to 2.
+. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../core" && pwd -P)}/hooks/lib/gate-lib.sh"
 # PreToolUse hook: bounds the background hunters.
 #
 # Two limits, both mechanical, both enforced here rather than asked for in a
@@ -46,10 +47,7 @@ trap __fc EXIT
 # Off means off: `X_OFF=0` and `X_OFF=false` read as "not off" to a user and to
 # most tooling, but any non-empty value used to disable the hook — the kill switch
 # silently killed it on exactly the spelling meant to keep it alive.
-case "${WARRANT_OFF:-}" in
-  ""|0|false|no|off) ;;
-  *) exit 0 ;;
-esac
+gate_kill_switch_active "${WARRANT_OFF:-}" || exit 0
 
 command -v python3 >/dev/null 2>&1 || {
   echo "warrant: refused — hunt-guard.sh requires python3, which is not on PATH; denying rather than guessing." >&2

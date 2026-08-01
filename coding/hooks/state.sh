@@ -3,8 +3,9 @@
 # its PR — the v3 analogue of warrant's proposal-frontmatter scan. Informing
 # only; never blocks. Kill switch: export CODING_CYCLE_OFF=1
 trap 'rc=$?; if [ "$rc" != 0 ] && [ "$rc" != 2 ]; then exit 2; fi' EXIT
+. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../core" && pwd -P)}/hooks/lib/gate-lib.sh"
 set -uo pipefail
-case "${CODING_CYCLE_OFF:-}" in ""|0|false|no|off) ;; *) trap - EXIT; exit 0 ;; esac
+gate_kill_switch_active "${CODING_CYCLE_OFF:-}" || { trap - EXIT; exit 0; }
 [ "${CLAUDE_ROLE:-}" = "coding" ] || { trap - EXIT; exit 0; }
 
 root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)}"
