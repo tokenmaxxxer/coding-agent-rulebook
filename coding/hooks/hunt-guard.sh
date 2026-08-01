@@ -7,7 +7,12 @@ trap __fc EXIT
 #   NON-BLOCKING (fail-OPEN). Installed as the FIRST executable statement,
 #   above any set/source. Legitimate exit 0 (allow) / exit 2 (deny) verdicts
 #   pass through unchanged; only other codes are remapped to 2.
-. "${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../core" && pwd -P)}/hooks/lib/gate-lib.sh"
+_gate_lib="${CLAUDE_PLUGIN_ROOT_CORE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../core" && pwd -P)}/hooks/lib/gate-lib.sh"
+if [ ! -f "$_gate_lib" ]; then
+  echo "hunt-guard.sh: fail-closed: core plugin not found (gate-lib.sh missing at $_gate_lib)" >&2
+  exit 2
+fi
+. "$_gate_lib"
 # PreToolUse hook: bounds the background hunters.
 #
 # Two limits, both mechanical, both enforced here rather than asked for in a
