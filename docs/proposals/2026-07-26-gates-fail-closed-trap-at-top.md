@@ -1,5 +1,5 @@
 ---
-status: approved
+status: landed
 title: PreToolUse gate scripts fail closed with a trap-at-top
 ---
 

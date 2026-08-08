@@ -1,5 +1,5 @@
 ---
-status: approved
+status: landed
 files:
   - docs/specs/handoff-protocol.md
   - warrant/hooks/scope-gate.sh

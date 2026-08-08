@@ -1,5 +1,5 @@
 ---
-status: approved
+status: landed
 title: Gate hook scripts fail closed on any internal error
 ---
 
