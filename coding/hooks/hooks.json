@@ -3,9 +3,10 @@
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/directive.sh" },
-          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/state.sh" },
-          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/hunt-state.sh reset" }
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/directive.sh"
+          }
         ]
       }
     ],
@@ -13,20 +14,10 @@
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/coding-progress-gate.sh" }
-        ]
-      },
-      {
-        "matcher": "Agent|Task|Workflow",
-        "hooks": [
-          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/hunt-guard.sh" }
-        ]
-      }
-    ],
-    "SubagentStop": [
-      {
-        "hooks": [
-          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/hunt-state.sh release" }
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/coding-progress-gate.sh"
+          }
         ]
       }
     ]
