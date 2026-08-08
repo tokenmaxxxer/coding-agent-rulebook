@@ -1,5 +1,5 @@
 ---
-status: approved
+status: landed
 files:
   - docs/specs/role-handoff-contract.md
   - docs/proposals/2026-07-27-repo-local-contract-file.md

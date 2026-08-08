@@ -1,5 +1,5 @@
 ---
-status: approved
+status: landed
 files:
   - warrant/hooks/scope-gate.sh
   - doctrine/hooks/placement-gate.sh
